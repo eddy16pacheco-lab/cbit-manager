@@ -1,0 +1,156 @@
+
+/* ══════════════════════════════════════════════════════
+   LOGIN INTERACTIVO — botón activo al completar campos
+   ══════════════════════════════════════════════════════ */
+.btn-login {
+    opacity: 0.55;
+    cursor: not-allowed;
+    color: #ffffff !important;
+    background: linear-gradient(135deg, #4F46E5, #7C3AED);
+}
+
+/* Forzar blanco en TODO contenido del botón */
+.btn-login .btn-text,
+.btn-login span:not(.spinner),
+.btn-login i {
+    color: #ffffff !important;
+    font-weight: 700;
+}
+
+.btn-login.activo {
+    opacity: 1;
+    cursor: pointer;
+    color: #ffffff !important;
+    background: linear-gradient(135deg, #4F46E5, #7C3AED) !important;
+    box-shadow: 0 6px 24px rgba(79,70,229,0.45) !important;
+    animation: pulseLogin 2s ease infinite;
+}
+
+.btn-login.activo .btn-text,
+.btn-login.activo span,
+.btn-login.activo i {
+    color: #ffffff !important;
+}
+@keyframes pulseLogin {
+    0%,100% { box-shadow: 0 6px 24px rgba(79,70,229,0.45); }
+    50%      { box-shadow: 0 8px 32px rgba(79,70,229,0.65); }
+}
+.btn-login.activo:hover {
+    transform: translateY(-2px) !important;
+}
+.input-wrapper input.filled {
+    border-color: #4F46E5 !important;
+    background: rgba(79,70,229,0.04) !important;
+}
+.input-wrapper input.error-field {
+    border-color: #EF4444 !important;
+    background: rgba(239,68,68,0.04) !important;
+    animation: shakeInput 0.4s ease;
+}
+@keyframes shakeInput {
+    0%,100% { transform: translateX(0); }
+    25%      { transform: translateX(-6px); }
+    75%      { transform: translateX(6px); }
+}
+
+/* ══════════════════════════════════════════════════════
+   RF-56 — Modal confirmar estado equipo al finalizar
+   ══════════════════════════════════════════════════════ */
+.modal-estado-equipo {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-estado-equipo .inner {
+    background: var(--bg-surface);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 460px;
+    width: 95vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.estado-opciones {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+.btn-estado {
+    padding: 0.85rem;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+}
+.btn-estado.bueno    { background: rgba(16,185,129,0.1); border-color: #10B981; color: #10B981; }
+.btn-estado.fallas   { background: rgba(245,158,11,0.1);  border-color: #F59E0B; color: #F59E0B; }
+.btn-estado.bueno:hover  { background: #10B981; color: #fff; }
+.btn-estado.fallas:hover { background: #F59E0B; color: #fff; }
+
+/* ══════════════════════════════════════════════════════
+   RF-48 / RF-49 / RF-50 — Barra de filtros
+   ══════════════════════════════════════════════════════ */
+.filtros-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    background: rgba(79,70,229,0.04);
+    border: 1px solid rgba(79,70,229,0.12);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}
+.filtros-bar select,
+.filtros-bar input {
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    min-width: 130px;
+}
+.filtros-bar .btn-filtrar {
+    padding: 0.4rem 1rem;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.filtros-bar .btn-limpiar {
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-secondary);
+    border: 1px solid var(--glass-border);
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+
+/* Serial generado automático */
+.serial-auto-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: #10B981;
+    background: rgba(16,185,129,0.1);
+    border-radius: 6px;
+    padding: 0.2rem 0.6rem;
+    margin-top: 0.35rem;
+}

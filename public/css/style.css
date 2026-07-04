@@ -214,30 +214,38 @@ body {
 }
 
 .btn-login {
-    width: 100%;
-    padding: 0.95rem;
+    background: linear-gradient(135deg, #4F46E5, #7C3AED);
+    color: #ffffff !important;
     border: none;
     border-radius: 10px;
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: white;
-    font-family: 'Outfit', sans-serif;
-    font-size: 1rem;
-    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
     cursor: pointer;
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
-    margin-top: 0.5rem;
+    gap: 0.5rem;
+    transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+
+/* Texto dentro del botón login siempre blanco */
+.btn-login .btn-text,
+.btn-login span,
+.btn-login i {
+    color: #ffffff !important;
 }
 
 .btn-login:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.45);
+    color: #ffffff !important;
 }
-
+.btn-login:active {
+    transform: translateY(0);
+}
 .btn-login .spinner {
     display: none;
     width: 18px;

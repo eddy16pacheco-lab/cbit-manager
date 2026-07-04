@@ -1,4 +1,4 @@
-# CBIT Manager — Sistema Integral de Gestión
+# CBIT Manager — Sistema Integral de Gestión administrativa
 
 ## Tecnologías
 - **Backend:** Node.js + Express.js

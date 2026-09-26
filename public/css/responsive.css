@@ -1,0 +1,314 @@
+
+/* ══════════════════════════════════════════════════════
+   LOGIN INTERACTIVO — botón activo al completar campos
+   ══════════════════════════════════════════════════════ */
+.btn-login {
+    opacity: 0.55;
+    cursor: not-allowed;
+    color: #ffffff !important;
+    background: linear-gradient(135deg, #4F46E5, #7C3AED);
+}
+
+/* Forzar blanco en TODO contenido del botón */
+.btn-login .btn-text,
+.btn-login span:not(.spinner),
+.btn-login i {
+    color: #ffffff !important;
+    font-weight: 700;
+}
+
+.btn-login.activo {
+    opacity: 1;
+    cursor: pointer;
+    color: #ffffff !important;
+    background: linear-gradient(135deg, #4F46E5, #7C3AED) !important;
+    box-shadow: 0 6px 24px rgba(79,70,229,0.45) !important;
+    animation: pulseLogin 2s ease infinite;
+}
+
+.btn-login.activo .btn-text,
+.btn-login.activo span,
+.btn-login.activo i {
+    color: #ffffff !important;
+}
+@keyframes pulseLogin {
+    0%,100% { box-shadow: 0 6px 24px rgba(79,70,229,0.45); }
+    50%      { box-shadow: 0 8px 32px rgba(79,70,229,0.65); }
+}
+.btn-login.activo:hover {
+    transform: translateY(-2px) !important;
+}
+.input-wrapper input.filled {
+    border-color: #4F46E5 !important;
+    background: rgba(79,70,229,0.04) !important;
+}
+.input-wrapper input.error-field {
+    border-color: #EF4444 !important;
+    background: rgba(239,68,68,0.04) !important;
+    animation: shakeInput 0.4s ease;
+}
+@keyframes shakeInput {
+    0%,100% { transform: translateX(0); }
+    25%      { transform: translateX(-6px); }
+    75%      { transform: translateX(6px); }
+}
+
+/* ══════════════════════════════════════════════════════
+   RF-56 — Modal confirmar estado equipo al finalizar
+   ══════════════════════════════════════════════════════ */
+.modal-estado-equipo {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-estado-equipo .inner {
+    background: var(--bg-surface);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 460px;
+    width: 95vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.estado-opciones {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+.btn-estado {
+    padding: 0.85rem;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+}
+.btn-estado.bueno    { background: rgba(16,185,129,0.1); border-color: #10B981; color: #10B981; }
+.btn-estado.fallas   { background: rgba(245,158,11,0.1);  border-color: #F59E0B; color: #F59E0B; }
+.btn-estado.bueno:hover  { background: #10B981; color: #fff; }
+.btn-estado.fallas:hover { background: #F59E0B; color: #fff; }
+
+/* ══════════════════════════════════════════════════════
+   RF-48 / RF-49 / RF-50 — Barra de filtros
+   ══════════════════════════════════════════════════════ */
+.filtros-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+    background: rgba(79,70,229,0.04);
+    border: 1px solid rgba(79,70,229,0.12);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}
+.filtros-bar select,
+.filtros-bar input {
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    min-width: 130px;
+}
+.filtros-bar .btn-filtrar {
+    padding: 0.4rem 1rem;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.filtros-bar .btn-limpiar {
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-secondary);
+    border: 1px solid var(--glass-border);
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+
+/* Serial generado automático */
+.serial-auto-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: #10B981;
+    background: rgba(16,185,129,0.1);
+    border-radius: 6px;
+    padding: 0.2rem 0.6rem;
+    margin-top: 0.35rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RESPONSIVIDAD COMPLETA — Computadoras, tablets y teléfonos
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Evita cualquier scroll horizontal accidental en toda la app */
+html, body { overflow-x: hidden; max-width: 100%; }
+img, svg, canvas, video { max-width: 100%; }
+* { box-sizing: border-box; }
+
+/* Botón de menú (hamburguesa): oculto en escritorio, visible en móvil/tablet */
+.btn-menu-movil { display: none !important; }
+
+/* Overlay oscuro detrás del menú lateral en móvil */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity .25s ease;
+}
+.sidebar-overlay.open {
+    display: block;
+    opacity: 1;
+}
+body.sidebar-abierto { overflow: hidden; }
+
+/* Botón flotante de ayuda: no debe salirse de la pantalla ni tapar contenido crítico */
+#btn-ayuda-flotante { flex-shrink: 0; }
+
+/* ── Tablets grandes / pantallas medianas (≤1200px) ─────────────────── */
+@media (max-width: 1200px) {
+    :root { --sidebar-width: 230px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Tablets (≤1024px) ───────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+    .dashboard-content-grid { grid-template-columns: 1fr; }
+    .estado-opciones { grid-template-columns: 1fr; }
+    .header-search { width: 220px; }
+    .header-search:focus-within { width: 260px; }
+}
+
+/* ── Móviles y tablets pequeñas (≤768px) ──────────────────────────────
+   El menú lateral pasa a ser un panel deslizante activado por el botón
+   de hamburguesa; el contenido principal ocupa el 100% del ancho.       */
+@media (max-width: 768px) {
+    .app-container { height: 100dvh; }
+
+    .btn-menu-movil { display: flex !important; }
+
+    .sidebar {
+        position: fixed !important;
+        top: 0;
+        left: -100% !important;
+        width: min(280px, 82vw) !important;
+        height: 100% !important;
+        z-index: 1000 !important;
+        box-shadow: 0 0 40px rgba(0,0,0,0.35);
+        transition: left .28s ease;
+        background: var(--bg-main, #F3F4F6) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    .sidebar.open { left: 0 !important; }
+
+    .main-wrapper { width: 100%; }
+
+    .top-header {
+        padding: 0 1rem;
+        height: 60px;
+    }
+
+    .header-search { display: none; }
+
+    .header-actions { gap: 10px; }
+
+    .form-row { grid-template-columns: 1fr; }
+
+    .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+
+    .views-container { padding: 0 1rem 5rem 1rem; }
+
+    .page-title { font-size: 1.35rem; }
+    .page-subtitle { font-size: 0.82rem; }
+
+    .glass-panel { padding: 1rem; }
+
+    /* Barras de pestañas/filtros (Reportes, Historial, filtros de módulos) */
+    #tabs-reporte, .filtros-bar, .barra-busqueda-modulo {
+        gap: 0.4rem;
+        padding: 0.6rem;
+    }
+    #tabs-reporte button, .filtros-bar select, .filtros-bar input,
+    .barra-busqueda-modulo select, .barra-busqueda-modulo input {
+        font-size: 0.78rem;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    /* Modales: ocupan casi toda la pantalla y permiten scroll vertical */
+    #modal-overlay > div { width: 100% !important; max-width: 100% !important; padding: 1.4rem !important; }
+
+    /* Métricas (chips de resumen usados en Historial y otros módulos) */
+    .section-metrics { flex-wrap: wrap; gap: 0.6rem; }
+    .metric-chip { flex: 1 1 45%; }
+
+    /* Botones de acción a ancho completo cuando están apilados */
+    .form-actions, .modal-actions { flex-wrap: wrap; }
+    .form-actions button, .modal-actions button { flex: 1 1 auto; }
+
+    #btn-ayuda-flotante { width: 46px; height: 46px; font-size: 1.1rem; bottom: 18px; right: 18px; }
+}
+
+/* ── Teléfonos (≤480px) ───────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .user-info { display: none; }
+    .user-profile { padding: 0.4rem; }
+    .btn-icon { width: 35px; height: 35px; }
+    .toast { white-space: normal; text-align: center; max-width: 90%; }
+
+    .logo-area { padding: 0 1rem; }
+    .logo-text h2 { font-size: 1.2rem; }
+
+    .stats-grid { grid-template-columns: 1fr; }
+
+    .page-title { font-size: 1.15rem; }
+
+    .glass-panel { padding: 0.85rem; border-radius: 12px; }
+
+    table.premium-table, table.premium-table-detailed { font-size: 0.78rem; }
+    .premium-table th, .premium-table td,
+    .premium-table-detailed th, .premium-table-detailed td { padding: 0.5rem 0.4rem; }
+
+    .status-badge, .table-tag { font-size: 0.68rem; padding: 0.2rem 0.5rem; }
+
+    #modal-overlay > div { padding: 1.1rem !important; border-radius: 12px; }
+    #modal-overlay h3 { font-size: 1rem; }
+
+    .btn, .btn-primary, .btn-outline { font-size: 0.85rem; padding: 0.55rem 0.9rem; }
+
+    #btn-ayuda-flotante { width: 42px; height: 42px; font-size: 1rem; bottom: 14px; right: 14px; }
+}
+
+/* ── Pantallas muy pequeñas (≤360px) ─────────────────────────────────── */
+@media (max-width: 360px) {
+    .metric-chip { flex: 1 1 100%; }
+    .header-actions { gap: 6px; }
+}
+
+/* ── Accesibilidad táctil: objetivos de toque de al menos 44px ───────── */
+@media (hover: none) and (pointer: coarse) {
+    .nav-item, .btn, .btn-icon, .btn-primary, .btn-outline, button { min-height: 42px; }
+}
+

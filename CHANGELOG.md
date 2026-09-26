@@ -154,13 +154,6 @@ a ambos enlaces del manual por buenas prácticas. Si el PDF sigue sin abrir en u
 probablemente sea el navegador bloqueando la descarga o un visor de PDF no configurado en el teléfono, no
 el enlace en sí.
 
-## 17. Texto exacto en las notificaciones de inicio/cierre de sesión
-Antes, cuando alguien iniciaba o cerraba sesión, el resto de usuarios conectados veía un aviso genérico
-("X hizo una creación en Autenticación"). Ahora `AuthController` emite un evento de Socket.IO dedicado con
-el texto exacto: **"nombre_apellido ha iniciado sesión"** y **"nombre_apellido ha finalizado su sesión"**,
-que se muestra tal cual en el toast a todos los demás usuarios conectados (y sigue sonando la notificación).
-Este aviso ya no se mezcla con las notificaciones de creación/edición/eliminación de otros módulos.
-
 ## Notas y recomendaciones para una futura revisión (fuera del alcance de esta solicitud)
 - **Contraseñas en texto plano:** `Usuario.findByCredentials` compara `contrasena_usuario` sin cifrar,
   aunque el proyecto ya tiene `bcryptjs` como dependencia. Se recomienda migrar a hash de contraseñas en

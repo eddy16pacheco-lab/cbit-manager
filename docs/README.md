@@ -129,3 +129,4 @@ Navegador (View)
                                         └── res.json({ ok, data })
    └── renderiza la tabla / formulario en pantalla
 ```
+<img width="1920" height="973" alt="calendario de reserva_dark" src="https://github.com/user-attachments/assets/6deebb79-e8ad-4008-b9b2-bcfbe99328a6" />

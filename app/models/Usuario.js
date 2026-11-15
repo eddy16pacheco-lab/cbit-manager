@@ -38,8 +38,9 @@ class Usuario {
     }
     static async findByCredencialesRecuperacion(cedula, correo) {
         const [rows] = await db.execute(
-            `SELECT u.correo FROM usuario u JOIN persona p ON u.id_persona=p.id_persona
-             WHERE p.cedula=? AND u.correo=?`,
+            `SELECT u.*, p.nombre, p.apellido FROM usuario u
+             JOIN persona p ON u.id_persona=p.id_persona
+             WHERE p.cedula=? AND u.correo=? AND u.estado != 'Inactivo'`,
             [cedula, correo]
         );
         return rows[0] || null;

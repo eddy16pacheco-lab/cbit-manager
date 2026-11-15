@@ -5,6 +5,7 @@ const AuthController        = require('../app/controllers/AuthController');
 const DashboardController   = require('../app/controllers/DashboardController');
 const CategoriaController   = require('../app/controllers/CategoriaController');
 const MarcaController       = require('../app/controllers/MarcaController');
+const ModeloController      = require('../app/controllers/ModeloController');
 const EquiposController     = require('../app/controllers/EquiposController');
 const InventarioController  = require('../app/controllers/InventarioController');
 const ActividadController   = require('../app/controllers/ActividadController');
@@ -17,6 +18,8 @@ const UsuariosController    = require('../app/controllers/UsuariosController');
 const PersonaController     = require('../app/controllers/PersonaController');
 const EspaciosController    = require('../app/controllers/EspaciosController');
 const ReportesController    = require('../app/controllers/ReportesController');
+const HistorialController   = require('../app/controllers/HistorialController');
+const auditMiddleware       = require('../app/middlewares/auditMiddleware');
 
 function auth(req, res, next) {
     if (req.session && req.session.usuario) return next();
@@ -26,6 +29,11 @@ function adminOnly(req, res, next) {
     if (req.session?.usuario?.roles === 'Administrador') return next();
     res.status(403).json({ ok: false, msg: 'Solo administradores' });
 }
+
+// Registra automáticamente en el historial de actividades toda operación
+// de creación / actualización / eliminación que responda ok:true.
+router.use(auditMiddleware);
+
 
 // Auth
 router.post('/auth/login',     AuthController.login);
@@ -47,6 +55,12 @@ router.get('/marcas',         auth, MarcaController.listar);
 router.post('/marcas',        auth, MarcaController.crear);
 router.put('/marcas/:id',     auth, MarcaController.actualizar);
 router.delete('/marcas/:id',  auth, adminOnly, MarcaController.eliminar);
+
+// Modelos
+router.get('/modelos',        auth, ModeloController.listar);
+router.post('/modelos',       auth, ModeloController.crear);
+router.put('/modelos/:id',    auth, ModeloController.actualizar);
+router.delete('/modelos/:id', auth, adminOnly, ModeloController.eliminar);
 
 // Equipos
 router.get('/equipos',         auth, EquiposController.listar);
@@ -128,5 +142,9 @@ router.get('/reportes/actividades',       auth, ReportesController.actividadesEd
 router.get('/reportes/fallas',            auth, ReportesController.fallasTecnicas);
 router.get('/reportes/mantenimiento',     auth, ReportesController.mantenimientoEquipos);
 router.get('/reportes/maquinas-usadas',   auth, ReportesController.maquinasMasUsadas);
+router.get('/reportes/asistencia',        auth, ReportesController.asistenciaReporte);
+
+// Historial de Actividades del Sistema (bitácora) — solo Administrador
+router.get('/historial', auth, adminOnly, HistorialController.listar);
 
 module.exports = router;

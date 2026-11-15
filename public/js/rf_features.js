@@ -5,38 +5,49 @@
 // ══════════════════════════════════════════════════════════════
 
 // ─── LOGIN INTERACTIVO (botón activa al llenar campos) ────────
+// Corrige un bug donde `querySelector('.btn-login')` solo tomaba el PRIMER
+// botón de la página (el del login), dejando los botones de "Recuperar
+// Contraseña" y otros paneles con el estilo "inactivo" fijo para siempre,
+// aunque en realidad sí funcionaban al hacer clic.
 function initLoginInteractivo() {
+    // Panel de inicio de sesión
+    _activarBotonSegunCampos(['login-user', 'login-pass'], '#panel-login .btn-login');
+    // Panel de recuperar contraseña (cédula compuesta + correo)
+    _activarBotonSegunCampos(['rec-cedula-numero', 'rec-email'], '#panel-recover .btn-login');
+
+    // Shake al error de login
     const userInput = document.getElementById('login-user');
     const passInput = document.getElementById('login-pass');
-    const btnLogin  = document.querySelector('.btn-login');
-    if (!userInput || !passInput || !btnLogin) return;
-
-    function actualizarBoton() {
-        const lleno = userInput.value.trim().length > 0 && passInput.value.length > 0;
-        btnLogin.classList.toggle('activo', lleno);
-        btnLogin.disabled = !lleno;
-    }
-
-    userInput.addEventListener('input', () => {
-        userInput.classList.toggle('filled', userInput.value.trim().length > 0);
-        actualizarBoton();
-    });
-    passInput.addEventListener('input', () => {
-        passInput.classList.toggle('filled', passInput.value.length > 0);
-        actualizarBoton();
-    });
-
-    // Shake al error
     document.addEventListener('loginError', () => {
-        userInput.classList.add('error-field');
-        passInput.classList.add('error-field');
+        userInput?.classList.add('error-field');
+        passInput?.classList.add('error-field');
         setTimeout(() => {
-            userInput.classList.remove('error-field');
-            passInput.classList.remove('error-field');
+            userInput?.classList.remove('error-field');
+            passInput?.classList.remove('error-field');
         }, 600);
     });
+}
 
-    actualizarBoton();
+// Activa/desactiva visualmente un botón según si TODOS los campos indicados
+// tienen contenido. Reutilizable para cualquier panel del login.
+function _activarBotonSegunCampos(idsCampos, selectorBoton) {
+    const campos = idsCampos.map(id => document.getElementById(id)).filter(Boolean);
+    const btn = document.querySelector(selectorBoton);
+    if (!campos.length || !btn) return;
+
+    function actualizar() {
+        const lleno = campos.every(c => c.value && c.value.trim().length > 0);
+        btn.classList.toggle('activo', lleno);
+        btn.disabled = !lleno;
+    }
+    campos.forEach(c => {
+        c.addEventListener('input', () => {
+            c.classList.toggle('filled', c.value.trim().length > 0);
+            actualizar();
+        });
+        c.addEventListener('change', actualizar);
+    });
+    actualizar();
 }
 
 // Disparar el evento de error desde el login

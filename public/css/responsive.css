@@ -143,6 +143,21 @@
 }
 
 /* Serial generado automático */
+.cedula-group {
+    display: flex;
+    gap: 0.5rem;
+}
+.cedula-group .cedula-prefijo {
+    flex: 0 0 68px;
+    text-align: center;
+    font-weight: 600;
+    padding-left: 0.4rem;
+    padding-right: 0.2rem;
+}
+.cedula-group .cedula-numero {
+    flex: 1;
+}
+
 .serial-auto-badge {
     display: inline-flex;
     align-items: center;
@@ -154,3 +169,161 @@
     padding: 0.2rem 0.6rem;
     margin-top: 0.35rem;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   RESPONSIVIDAD COMPLETA — Computadoras, tablets y teléfonos
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Evita cualquier scroll horizontal accidental en toda la app */
+html, body { overflow-x: hidden; max-width: 100%; }
+img, svg, canvas, video { max-width: 100%; }
+* { box-sizing: border-box; }
+
+/* Botón de menú (hamburguesa): oculto en escritorio, visible en móvil/tablet */
+.btn-menu-movil { display: none !important; }
+
+/* Overlay oscuro detrás del menú lateral en móvil */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity .25s ease;
+}
+.sidebar-overlay.open {
+    display: block;
+    opacity: 1;
+}
+body.sidebar-abierto { overflow: hidden; }
+
+/* Botón flotante de ayuda: no debe salirse de la pantalla ni tapar contenido crítico */
+#btn-ayuda-flotante { flex-shrink: 0; }
+
+/* ── Tablets grandes / pantallas medianas (≤1200px) ─────────────────── */
+@media (max-width: 1200px) {
+    :root { --sidebar-width: 230px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Tablets (≤1024px) ───────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+    .dashboard-content-grid { grid-template-columns: 1fr; }
+    .estado-opciones { grid-template-columns: 1fr; }
+    .header-search { width: 220px; }
+    .header-search:focus-within { width: 260px; }
+}
+
+/* ── Móviles y tablets pequeñas (≤768px) ──────────────────────────────
+   El menú lateral pasa a ser un panel deslizante activado por el botón
+   de hamburguesa; el contenido principal ocupa el 100% del ancho.       */
+@media (max-width: 768px) {
+    .app-container { height: 100dvh; }
+
+    .btn-menu-movil { display: flex !important; }
+
+    .sidebar {
+        position: fixed !important;
+        top: 0;
+        left: -100% !important;
+        width: min(280px, 82vw) !important;
+        height: 100% !important;
+        z-index: 1000 !important;
+        box-shadow: 0 0 40px rgba(0,0,0,0.35);
+        transition: left .28s ease;
+        background: var(--bg-main, #F3F4F6) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+    .sidebar.open { left: 0 !important; }
+
+    .main-wrapper { width: 100%; }
+
+    .top-header {
+        padding: 0 1rem;
+        height: 60px;
+    }
+
+    .header-search { display: none; }
+
+    .header-actions { gap: 10px; }
+
+    .form-row { grid-template-columns: 1fr; }
+
+    .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+
+    .views-container { padding: 0 1rem 5rem 1rem; }
+
+    .page-title { font-size: 1.35rem; }
+    .page-subtitle { font-size: 0.82rem; }
+
+    .glass-panel { padding: 1rem; }
+
+    /* Barras de pestañas/filtros (Reportes, Historial, filtros de módulos) */
+    #tabs-reporte, .filtros-bar, .barra-busqueda-modulo {
+        gap: 0.4rem;
+        padding: 0.6rem;
+    }
+    #tabs-reporte button, .filtros-bar select, .filtros-bar input,
+    .barra-busqueda-modulo select, .barra-busqueda-modulo input {
+        font-size: 0.78rem;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    /* Modales: ocupan casi toda la pantalla y permiten scroll vertical */
+    #modal-overlay > div { width: 100% !important; max-width: 100% !important; padding: 1.4rem !important; }
+
+    /* Métricas (chips de resumen usados en Historial y otros módulos) */
+    .section-metrics { flex-wrap: wrap; gap: 0.6rem; }
+    .metric-chip { flex: 1 1 45%; }
+
+    /* Botones de acción a ancho completo cuando están apilados */
+    .form-actions, .modal-actions { flex-wrap: wrap; }
+    .form-actions button, .modal-actions button { flex: 1 1 auto; }
+
+    #btn-ayuda-flotante { width: 46px; height: 46px; font-size: 1.1rem; bottom: 18px; right: 18px; }
+}
+
+/* ── Teléfonos (≤480px) ───────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .user-info { display: none; }
+    .user-profile { padding: 0.4rem; }
+    .btn-icon { width: 35px; height: 35px; }
+    .toast { white-space: normal; text-align: center; max-width: 90%; }
+
+    .logo-area { padding: 0 1rem; }
+    .logo-text h2 { font-size: 1.2rem; }
+
+    .stats-grid { grid-template-columns: 1fr; }
+
+    .page-title { font-size: 1.15rem; }
+
+    .glass-panel { padding: 0.85rem; border-radius: 12px; }
+
+    table.premium-table, table.premium-table-detailed { font-size: 0.78rem; }
+    .premium-table th, .premium-table td,
+    .premium-table-detailed th, .premium-table-detailed td { padding: 0.5rem 0.4rem; }
+
+    .status-badge, .table-tag { font-size: 0.68rem; padding: 0.2rem 0.5rem; }
+
+    #modal-overlay > div { padding: 1.1rem !important; border-radius: 12px; }
+    #modal-overlay h3 { font-size: 1rem; }
+
+    .btn, .btn-primary, .btn-outline { font-size: 0.85rem; padding: 0.55rem 0.9rem; }
+
+    #btn-ayuda-flotante { width: 42px; height: 42px; font-size: 1rem; bottom: 14px; right: 14px; }
+}
+
+/* ── Pantallas muy pequeñas (≤360px) ─────────────────────────────────── */
+@media (max-width: 360px) {
+    .metric-chip { flex: 1 1 100%; }
+    .header-actions { gap: 6px; }
+}
+
+/* ── Accesibilidad táctil: objetivos de toque de al menos 44px ───────── */
+@media (hover: none) and (pointer: coarse) {
+    .nav-item, .btn, .btn-icon, .btn-primary, .btn-outline, button { min-height: 42px; }
+}
+

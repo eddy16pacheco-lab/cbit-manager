@@ -45,14 +45,178 @@ function loadingPanel(titulo, id) {
 }
 function setContainer(html) { document.getElementById('views-container').innerHTML = html; }
 
+// ==================== BUSCADOR + FILTROS ====================
+function barraBusqueda(placeholder, columnas) {
+    const opOrdenar = columnas.map(c =>
+        `<option value="${c.idx}">${c.label}</option>`
+    ).join('');
+    return `
+    <div class="barra-busqueda-modulo" style="
+        display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;
+        padding:.75rem 1rem;margin-bottom:1rem;
+        background:rgba(79,70,229,0.04);
+        border:1px solid rgba(79,70,229,0.12);border-radius:10px">
+        <div style="position:relative;flex:1;min-width:180px">
+            <i class="fas fa-search" style="position:absolute;left:.75rem;top:50%;
+               transform:translateY(-50%);color:var(--text-secondary);
+               font-size:.82rem;pointer-events:none"></i>
+            <input type="text" placeholder="${placeholder}"
+                oninput="filtrarTabla(this)"
+                style="width:100%;padding:.42rem .75rem .42rem 2.1rem;
+                       border-radius:8px;border:1px solid rgba(79,70,229,0.2);
+                       background:var(--bg-surface);color:var(--text-primary);
+                       font-size:.84rem;outline:none;box-sizing:border-box;
+                       transition:border-color .2s">
+        </div>
+        <select onchange="ordenarTablaCol(this)"
+            style="padding:.42rem .75rem;border-radius:8px;
+                   border:1px solid rgba(79,70,229,0.2);
+                   background:var(--bg-surface);color:var(--text-primary);
+                   font-size:.82rem;cursor:pointer;min-width:145px">
+            <option value="">Ordenar por...</option>
+            ${opOrdenar}
+        </select>
+        <button onclick="toggleDirOrden(this)"
+            data-dir="asc"
+            style="padding:.42rem .75rem;border-radius:8px;
+                   border:1px solid rgba(79,70,229,0.2);
+                   background:var(--bg-surface);color:var(--text-primary);
+                   cursor:pointer;font-size:.82rem;
+                   display:flex;align-items:center;gap:.35rem;white-space:nowrap">
+            <i class="fas fa-arrow-up"></i><span>A → Z</span>
+        </button>
+        <button onclick="limpiarBuscador(this)"
+            style="padding:.42rem .75rem;border-radius:8px;
+                   border:1px solid rgba(255,255,255,.1);
+                   background:none;color:var(--text-secondary);
+                   cursor:pointer;font-size:.82rem">
+            <i class="fas fa-times"></i> Limpiar
+        </button>
+        <span class="buscador-contador"
+            style="font-size:.77rem;color:var(--text-secondary);
+                   margin-left:auto;white-space:nowrap"></span>
+    </div>`;
+}
+
+function filtrarTabla(input) {
+    const panel  = input.closest('.glass-panel');
+    const tbody  = panel?.querySelector('.premium-table tbody');
+    if (!tbody) return;
+    const term   = input.value.toLowerCase().trim();
+    const filas  = tbody.querySelectorAll('tr:not(.buscador-sin-res)');
+    let vis = 0;
+    filas.forEach(f => {
+        const ok = !term || f.textContent.toLowerCase().includes(term);
+        f.style.display = ok ? '' : 'none';
+        if (ok) vis++;
+    });
+    // Contador
+    const contador = input.closest('.barra-busqueda-modulo')?.querySelector('.buscador-contador');
+    if (contador) {
+        contador.textContent  = term ? `${vis} de ${filas.length} resultados` : `${filas.length} registros`;
+        contador.style.color  = (term && vis===0) ? '#EF4444' : 'var(--text-secondary)';
+    }
+    // Sin resultados
+    let sr = tbody.querySelector('.buscador-sin-res');
+    if (vis===0 && term) {
+        if (!sr) {
+            sr = document.createElement('tr');
+            sr.className = 'buscador-sin-res';
+            sr.innerHTML = `<td colspan="20" style="text-align:center;padding:2rem;
+                color:var(--text-secondary);font-size:.875rem">
+                <i class="fas fa-search" style="display:block;font-size:1.5rem;
+                   margin-bottom:.5rem;opacity:.35"></i>
+                Sin resultados para "<strong>${input.value}</strong>"</td>`;
+            tbody.appendChild(sr);
+        }
+    } else sr?.remove();
+    // Actualizar contador con total si vacío
+    if (!term && contador) {
+        contador.textContent = `${filas.length} registros`;
+    }
+}
+
+function ordenarTablaCol(sel) {
+    const idx   = parseInt(sel.value);
+    if (isNaN(idx)) return;
+    const panel = sel.closest('.glass-panel');
+    const tabla = panel?.querySelector('.premium-table');
+    if (!tabla) return;
+    const btn   = sel.closest('.barra-busqueda-modulo')?.querySelector('[data-dir]');
+    const dir   = btn?.dataset.dir || 'asc';
+    _aplicarOrden(tabla, idx, dir);
+}
+
+function toggleDirOrden(btn) {
+    const dir   = btn.dataset.dir === 'asc' ? 'desc' : 'asc';
+    btn.dataset.dir = dir;
+    btn.querySelector('i').className = `fas fa-arrow-${dir==='asc'?'up':'down'}`;
+    btn.querySelector('span').textContent = dir==='asc' ? 'A → Z' : 'Z → A';
+    const sel   = btn.closest('.barra-busqueda-modulo')?.querySelector('select');
+    const idx   = parseInt(sel?.value);
+    if (!isNaN(idx)) {
+        const panel = btn.closest('.glass-panel');
+        const tabla = panel?.querySelector('.premium-table');
+        if (tabla) _aplicarOrden(tabla, idx, dir);
+    }
+}
+
+function _aplicarOrden(tabla, colIdx, dir) {
+    const tbody = tabla.querySelector('tbody');
+    const filas = Array.from(tbody.querySelectorAll('tr:not(.buscador-sin-res)'));
+    filas.sort((a,b) => {
+        const tA = a.cells[colIdx]?.textContent?.trim().toLowerCase()||'';
+        const tB = b.cells[colIdx]?.textContent?.trim().toLowerCase()||'';
+        const nA = parseFloat(tA.replace(/[^0-9.-]/g,''));
+        const nB = parseFloat(tB.replace(/[^0-9.-]/g,''));
+        const isNum = !isNaN(nA) && !isNaN(nB);
+        const cmp = isNum ? nA-nB : tA.localeCompare(tB,'es');
+        return dir==='desc' ? -cmp : cmp;
+    });
+    filas.forEach(f => tbody.appendChild(f));
+    // Marcar cabecera
+    tabla.querySelectorAll('thead th').forEach((th,i) => {
+        th.innerHTML = th.innerHTML.replace(/\s*<i class="fas fa-sort.*?<\/i>/g,'');
+        th.style.color = '';
+        if (i===colIdx) {
+            th.innerHTML += ` <i class="fas fa-sort-${dir==='asc'?'up':'down'}"
+                style="font-size:.68rem;color:#4F46E5"></i>`;
+            th.style.color = '#4F46E5';
+        }
+    });
+}
+
+function limpiarBuscador(btn) {
+    const barra = btn.closest('.barra-busqueda-modulo');
+    const input = barra?.querySelector('input');
+    const sel   = barra?.querySelector('select');
+    const dirBtn= barra?.querySelector('[data-dir]');
+    if (input)  { input.value = ''; filtrarTabla(input); }
+    if (sel)    sel.value = '';
+    if (dirBtn) { dirBtn.dataset.dir='asc'; dirBtn.querySelector('i').className='fas fa-arrow-up'; dirBtn.querySelector('span').textContent='A → Z'; }
+    // Limpiar marcas de orden en cabeceras
+    const panel = btn.closest('.glass-panel');
+    panel?.querySelectorAll('.premium-table thead th').forEach(th => {
+        th.innerHTML = th.innerHTML.replace(/\s*<i class="fas fa-sort.*?<\/i>/g,'');
+        th.style.color = '';
+    });
+}
+
+// Inicializar contador al renderizar
+function initContador(panel) {
+    const filas   = panel?.querySelectorAll('.premium-table tbody tr');
+    const contador = panel?.querySelector('.buscador-contador');
+    if (contador && filas) contador.textContent = `${filas.length} registros`;
+}
+
 // ==================== MODAL EDICIÓN ====================
 function mostrarModal(titulo, campos, onGuardar) {
     document.getElementById('modal-overlay')?.remove();
     const overlay = document.createElement('div');
     overlay.id = 'modal-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;';
     overlay.innerHTML = `
-        <div style="background:var(--bg-secondary, #1e1e2e);border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:16px;padding:2rem;min-width:480px;max-width:600px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="background:var(--bg-secondary, #1e1e2e);border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:16px;padding:2rem;width:480px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
                 <h3 style="margin:0;color:var(--text-primary,#fff)">${titulo}</h3>
                 <button onclick="document.getElementById('modal-overlay').remove()" style="background:none;border:none;color:var(--text-secondary,#aaa);font-size:1.4rem;cursor:pointer;padding:0.2rem 0.5rem;">&times;</button>
@@ -81,6 +245,39 @@ function inputModal(id, label, type='text', value='', opciones=null) {
 }
 function val(id) { return document.getElementById(id)?.value?.trim(); }
 
+// ==================== CAMPO DE CÉDULA (prefijo V-/E- fijo + solo números) ====================
+// Genera el HTML de un campo de cédula compuesto: un select fijo con V-/E- y un
+// input que solo acepta dígitos, para que el usuario nunca tenga que escribir el guion.
+function cedulaInputHTML(idBase, valorActual) {
+    let prefijo = 'V', numero = '';
+    if (valorActual) {
+        const m = String(valorActual).trim().match(/^([VEve])-?(\d+)$/);
+        if (m) { prefijo = m[1].toUpperCase(); numero = m[2]; }
+        else numero = String(valorActual).replace(/\D/g, '');
+    }
+    return `<div class="cedula-group">
+        <select id="${idBase}-prefijo" class="form-control cedula-prefijo">
+            <option value="V"${prefijo==='V'?' selected':''}>V-</option>
+            <option value="E"${prefijo==='E'?' selected':''}>E-</option>
+        </select>
+        <input type="text" id="${idBase}-numero" class="form-control cedula-numero" placeholder="12345678"
+               inputmode="numeric" maxlength="9" value="${numero}"
+               oninput="this.value=this.value.replace(/\\D/g,'').slice(0,9)">
+    </div>`;
+}
+// Arma el valor completo "V-12345678" a partir del select + input numérico
+function leerCedula(idBase) {
+    const prefijo = document.getElementById(`${idBase}-prefijo`)?.value || 'V';
+    const numero  = document.getElementById(`${idBase}-numero`)?.value?.trim() || '';
+    return numero ? `${prefijo}-${numero}` : '';
+}
+// Rellena el campo compuesto a partir de un valor guardado como "V-12345678"
+function escribirCedula(idBase, valorCompleto) {
+    const m = String(valorCompleto || '').trim().match(/^([VEve])-?(\d+)$/);
+    document.getElementById(`${idBase}-prefijo`).value = m ? m[1].toUpperCase() : 'V';
+    document.getElementById(`${idBase}-numero`).value  = m ? m[2] : String(valorCompleto || '').replace(/\D/g, '');
+}
+
 // ==================== AUTH ====================
 async function iniciarSesion() {
     const nombre_usuario = document.getElementById('login-user').value.trim();
@@ -91,8 +288,9 @@ async function iniciarSesion() {
     else showToast(r.msg, 'error');
 }
 async function recuperarContrasena() {
-    const cedula = document.getElementById('rec-cedula').value;
+    const cedula = leerCedula('rec-cedula');
     const correo = document.getElementById('rec-email').value;
+    if (!cedula) return showToast('Ingrese el número de cédula', 'error');
     const r = await api('POST', '/auth/recuperar', { cedula, correo });
     if (r.ok) { document.getElementById('success-text').textContent = r.msg; showPanel('panel-success'); }
     else showToast(r.msg, 'error');
@@ -100,6 +298,8 @@ async function recuperarContrasena() {
 function mostrarApp() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'flex';
+    document.getElementById('btn-ayuda-flotante').style.display = 'flex';
+    conectarSocket();
     const u = usuarioActual;
     const nombre = u.nombre && u.apellido ? `${u.nombre} ${u.apellido}` : u.nombre_usuario;
     const ini = (u.nombre || u.nombre_usuario).charAt(0).toUpperCase();
@@ -115,9 +315,10 @@ function cargarVistaInicial() { cargarVista('dashboard'); configurarNavegacion()
 
 function aplicarPermisosPorRol() {
     const esAdmin = usuarioActual?.roles === 'Administrador';
-    // Items solo visibles para administrador
-    const soloAdmin = ['categorias','marcas','equipos','inventario','disponibilidad-equipos',
-                       'actividades','mantenimiento','tecnicos','asistencias','personas','usuarios'];
+    // Items solo visibles para administrador. 'asistencias' se excluye de esta lista:
+    // los docentes SÍ pueden verla, pero el backend la filtra a solo sus propios eventos.
+    const soloAdmin = ['categorias','marcas','modelos','equipos','inventario','disponibilidad-equipos',
+                       'actividades','mantenimiento','tecnicos','personas','usuarios','historial'];
     document.querySelectorAll('.nav-item[data-target]').forEach(item => {
         const target = item.getAttribute('data-target');
         if (soloAdmin.includes(target)) {
@@ -140,8 +341,10 @@ function aplicarPermisosPorRol() {
     if (!esAdmin) cargarVista('solicitudes');
 }
 
+let vistaActual = 'dashboard';
 function cargarVista(vista) {
-    const mapa = { dashboard: renderDashboard, calendario: renderVistaCalendario, categorias: renderCategorias, marcas: renderMarcas, equipos: renderEquipos, inventario: renderInventario, actividades: renderActividades, solicitudes: renderSolicitudes, reservas: renderReservas, mantenimiento: renderMantenimiento, tecnicos: renderTecnicos, asistencias: renderAsistencias, personas: renderPersonas, usuarios: renderUsuarios, espacios: renderEspacios, 'disponibilidad-equipos': renderDisponibilidadEquipos, reportes: renderReportes };
+    vistaActual = vista;
+    const mapa = { dashboard: renderDashboard, calendario: renderVistaCalendario, categorias: renderCategorias, marcas: renderMarcas, modelos: renderModelos, equipos: renderEquipos, inventario: renderInventario, actividades: renderActividades, solicitudes: renderSolicitudes, reservas: renderReservas, mantenimiento: renderMantenimiento, tecnicos: renderTecnicos, asistencias: renderAsistencias, personas: renderPersonas, usuarios: renderUsuarios, espacios: renderEspacios, 'disponibilidad-equipos': renderDisponibilidadEquipos, reportes: renderReportes, historial: renderHistorial };
     (mapa[vista] || renderDashboard)();
 }
 function configurarNavegacion() {
@@ -151,8 +354,20 @@ function configurarNavegacion() {
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             item.classList.add('active');
             cargarVista(item.getAttribute('data-target'));
+            if (window.innerWidth <= 768) toggleSidebar(false);
         });
     });
+}
+
+// Abre/cierra el menú lateral en pantallas de celular/tablet.
+function toggleSidebar(forzar) {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (!sidebar) return;
+    const abrir = typeof forzar === 'boolean' ? forzar : !sidebar.classList.contains('open');
+    sidebar.classList.toggle('open', abrir);
+    overlay?.classList.toggle('open', abrir);
+    document.body.classList.toggle('sidebar-abierto', abrir);
 }
 
 // ==================== DASHBOARD ====================
@@ -278,8 +493,9 @@ async function renderCategorias() {
                         <button class="btn btn-outline" onclick="ocultarFormulario('form-categoria')">Cancelar</button>
                     </div>
                 </div>
+                ${barraBusqueda('Buscar categoría...',[{idx:1,label:'Categoría'},{idx:2,label:'Equipos'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
-                    <thead><tr><th>ID</th><th>Categoría</th><th>Equipos</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Categoría</th><th>Equipos</th><th>Acciones</th></tr></thead>
                     <tbody>${filas||'<tr><td colspan="4" class="empty-state">Sin registros</td></tr>'}</tbody>
                 </table></div>
             </div>
@@ -335,8 +551,9 @@ async function renderMarcas() {
                     <div class="form-row"><div class="form-group"><label>Nombre</label><input type="text" id="marca-nombre" class="form-control" placeholder="Ej: Asus"></div></div>
                     <div class="form-actions"><button class="btn btn-primary" onclick="guardarMarca()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-marca')">Cancelar</button></div>
                 </div>
+                ${barraBusqueda('Buscar marca...',[{idx:1,label:'Marca'},{idx:2,label:'Equipos'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
-                    <thead><tr><th>ID</th><th>Marca</th><th>Equipos</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Marca</th><th>Equipos</th><th>Acciones</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table></div>
             </div>
@@ -362,6 +579,66 @@ async function eliminarMarca(id) {
     if(!confirm('¿Eliminar esta marca?'))return;
     const r=await api('DELETE',`/marcas/${id}`);
     if(r.ok){showToast(r.msg,'success');renderMarcas();}else showToast(r.msg,'error');
+}
+
+// ==================== MODELOS ====================
+async function renderModelos() {
+    setContainer(loadingPanel('Modelos de Equipos','view-modelos'));
+    const r = await api('GET','/modelos');
+    if (!r.ok) return;
+    const filas = r.modelos.map(m=>`<tr>
+        <td><span class="table-tag">MOD-${String(m.id_modelo).padStart(2,'0')}</span></td>
+        <td><div class="cell-stack"><span class="cell-title">${m.nombre}</span><span class="cell-subtitle">${m.descripcion||'Sin descripción'}</span></div></td>
+        <td><span class="count-pill">${m.total_equipos} equipos</span></td>
+        <td><div class="table-actions">
+            <button class="btn-icon-small" onclick='editarModelo(${JSON.stringify(m)})'><i class="fas fa-edit"></i></button>
+            <button class="btn-icon-small" onclick="eliminarModelo(${m.id_modelo})"><i class="fas fa-trash"></i></button>
+        </div></td></tr>`).join('');
+    document.getElementById('views-container').innerHTML = `
+        <div id="view-modelos" class="view-section active">
+            <div class="section-header"><h1 class="page-title">Modelos de Equipos</h1></div>
+            <div class="glass-panel">
+                <div class="panel-toolbar"><div class="table-section-intro"><h3>Lista de Modelos</h3></div>
+                    <button class="btn btn-primary" onclick="mostrarFormularioModelo()"><i class="fas fa-plus"></i> Nuevo Modelo</button></div>
+                <div id="form-modelo" style="display:none;margin-bottom:1.5rem;padding:1rem;background:var(--glass-bg);border-radius:var(--radius-md);">
+                    <h4 id="form-mod-titulo">Registrar Nuevo Modelo</h4>
+                    <div class="form-row">
+                        <div class="form-group"><label>Nombre *</label><input type="text" id="modelo-nombre" class="form-control" placeholder="Ej: ProBook 450 G8" maxlength="40"></div>
+                        <div class="form-group"><label>Descripción</label><input type="text" id="modelo-descripcion" class="form-control" placeholder="Opcional" maxlength="255"></div>
+                    </div>
+                    <div class="form-actions"><button class="btn btn-primary" onclick="guardarModelo()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-modelo')">Cancelar</button></div>
+                </div>
+                ${barraBusqueda('Buscar modelo...',[{idx:1,label:'Modelo'},{idx:2,label:'Equipos'}])}
+                <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
+                    <thead><tr><th>Código</th><th>Modelo</th><th>Equipos</th><th>Acciones</th></tr></thead>
+                    <tbody>${filas||'<tr><td colspan="4" class="empty-state">Sin modelos registrados</td></tr>'}</tbody>
+                </table></div>
+            </div>
+        </div>`;
+}
+function editarModelo(m) {
+    const form = document.getElementById('form-modelo'); form.style.display='block'; form.dataset.editId=m.id_modelo;
+    document.getElementById('form-mod-titulo').textContent='Editar Modelo';
+    document.getElementById('modelo-nombre').value=m.nombre;
+    document.getElementById('modelo-descripcion').value=m.descripcion||'';
+}
+function mostrarFormularioModelo() {
+    const form=document.getElementById('form-modelo'); form.style.display='block'; form.dataset.editId='';
+    document.getElementById('form-mod-titulo').textContent='Registrar Nuevo Modelo';
+    document.getElementById('modelo-nombre').value='';
+    document.getElementById('modelo-descripcion').value='';
+}
+async function guardarModelo() {
+    const nombre=val('modelo-nombre'), descripcion=val('modelo-descripcion');
+    if(!nombre) return showToast('Complete el nombre del modelo','error');
+    const editId=document.getElementById('form-modelo').dataset.editId;
+    const r = editId ? await api('PUT',`/modelos/${editId}`,{nombre,descripcion}) : await api('POST','/modelos',{nombre,descripcion});
+    if(r.ok){showToast(r.msg,'success');renderModelos();}else showToast(r.msg,'error');
+}
+async function eliminarModelo(id) {
+    if(!confirm('¿Eliminar este modelo?'))return;
+    const r=await api('DELETE',`/modelos/${id}`);
+    if(r.ok){showToast(r.msg,'success');renderModelos();}else showToast(r.msg,'error');
 }
 
 // ==================== EQUIPOS ====================
@@ -405,8 +682,9 @@ async function renderEquipos() {
                     </div>
                     <div class="form-actions"><button class="btn btn-primary" onclick="guardarEquipo()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-equipo')">Cancelar</button></div>
                 </div>
+                ${barraBusqueda('Buscar por nombre, modelo, categoría...',[{idx:1,label:'Equipo'},{idx:2,label:'Modelo'},{idx:3,label:'Categoría'},{idx:4,label:'Marca'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
-                    <thead><tr><th>ID</th><th>Equipo</th><th>Modelo</th><th>Categoría</th><th>Marca</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Equipo</th><th>Modelo</th><th>Categoría</th><th>Marca</th><th>Acciones</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table></div>
             </div>
@@ -483,6 +761,7 @@ async function renderInventario() {
                     </div>
                     <div class="form-actions"><button class="btn btn-primary" onclick="guardarInventario()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-inventario')">Cancelar</button></div>
                 </div>
+                ${barraBusqueda('Buscar por serial, equipo o estado...',[{idx:0,label:'Serial'},{idx:1,label:'Equipo'},{idx:2,label:'Ubicación'},{idx:3,label:'Estado'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
                     <thead><tr><th>Serial</th><th>Equipo</th><th>Ubicación</th><th>Estado</th><th>Acciones</th></tr></thead>
                     <tbody>${filas}</tbody>
@@ -541,8 +820,9 @@ async function renderActividades() {
                     </div>
                     <div class="form-actions"><button class="btn btn-primary" onclick="guardarActividad()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-actividad')">Cancelar</button></div>
                 </div>
+                ${barraBusqueda('Buscar actividad...',[{idx:1,label:'Nombre'},{idx:3,label:'Solicitudes'}])}
                 <div class="table-responsive"><table class="premium-table">
-                    <thead><tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Solicitudes</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Nombre</th><th>Descripción</th><th>Solicitudes</th><th>Acciones</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table></div>
             </div>
@@ -663,8 +943,9 @@ async function renderSolicitudes() {
                     </div>
                 </div>
 
+                ${barraBusqueda('Buscar por docente, espacio, actividad o estado...',[{idx:1,label:'Docente'},{idx:2,label:'Espacio'},{idx:3,label:'Actividad'},{idx:4,label:'Fecha'},{idx:7,label:'Estado'}])}
                 <div class="table-responsive"><table class="premium-table">
-                    <thead><tr><th>ID</th><th>Docente</th><th>Espacio</th><th>Actividad</th><th>Fecha</th><th>Horario</th><th>Equipos</th><th>Estado</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Docente</th><th>Espacio</th><th>Actividad</th><th>Fecha</th><th>Horario</th><th>Equipos</th><th>Estado</th><th>Acciones</th></tr></thead>
                     <tbody>${filas||'<tr><td colspan="9" class="empty-state">Sin solicitudes registradas</td></tr>'}</tbody>
                 </table></div>
             </div>
@@ -739,9 +1020,22 @@ async function guardarSolicitud() {
         return showToast('Complete todos los campos requeridos','error');
 
     const editId = document.getElementById('form-solicitud').dataset.editId;
-    const r = editId
-        ? await api('PUT',`/solicitudes/${editId}`,{id_espacio,id_actividad,fecha,hora_inicio,hora_fin,descripcion,equipos_ids})
-        : await api('POST','/solicitudes',{id_espacio,id_actividad,fecha,hora_inicio,hora_fin,descripcion,aprobar_directo,equipos_ids});
+    if (editId) {
+        const r = await api('PUT',`/solicitudes/${editId}`,{id_espacio,id_actividad,fecha,hora_inicio,hora_fin,descripcion,equipos_ids});
+        if (r.ok) { showToast(r.msg,'success'); renderSolicitudes(); } else showToast(r.msg,'error');
+        return;
+    }
+
+    let r = await api('POST','/solicitudes',{id_espacio,id_actividad,fecha,hora_inicio,hora_fin,descripcion,aprobar_directo,equipos_ids});
+
+    // RF: si el backend detecta una solicitud igual en la misma fecha/horario,
+    // se avisa al usuario y se le da la opción de continuar de todas formas.
+    if (!r.ok && r.duplicado) {
+        const continuar = confirm(`⚠️ ${r.msg}`);
+        if (!continuar) { showToast('Registro cancelado por el usuario','info'); return; }
+        r = await api('POST','/solicitudes',{id_espacio,id_actividad,fecha,hora_inicio,hora_fin,descripcion,aprobar_directo,equipos_ids,confirmar_duplicado:true});
+    }
+
     if (r.ok) { showToast(r.msg,'success'); renderSolicitudes(); }
     else showToast(r.msg,'error');
 }
@@ -789,9 +1083,15 @@ async function renderAsistencias() {
     setContainer(loadingPanel('Control de Asistencia','view-asistencias'));
     const r = await api('GET','/asistencias'); if(!r.ok) return;
     const {asistencias, solicitudes, estudiantes, personas} = r;
+    const esAdmin = usuarioActual?.roles === 'Administrador';
 
     const opEst = estudiantes.map(e=>`<option value="${e.id_estudiante}">${e.nombre} ${e.apellido} — ${e.cedula} (${e.año} ${e.seccion||''})</option>`).join('');
     const opSol = solicitudes.filter(s=>s.estado==='Aprobado').map(s=>`<option value="${s.id_solicitud}">#${s.id_solicitud} — ${s.actividad_nombre} (${new Date(s.fecha).toLocaleDateString('es-ES')})</option>`).join('');
+
+    // Personas registradas que todavía NO son estudiantes (para poder vincularlas)
+    const idsPersonasEstudiante = new Set(estudiantes.map(e=>String(e.id_persona)));
+    const opPersonasDisponibles = (personas||[]).filter(p=>!idsPersonasEstudiante.has(String(p.id_persona)))
+        .map(p=>`<option value="${p.id_persona}">${p.nombre} ${p.apellido} — ${p.cedula}</option>`).join('');
 
     // Secciones y años del schema
     const secciones = ['A','B','C','D','U'];
@@ -811,6 +1111,10 @@ async function renderAsistencias() {
     document.getElementById('views-container').innerHTML = `
         <div id="view-asistencias" class="view-section active">
             <div class="section-header"><h1 class="page-title">Control de Asistencia</h1></div>
+            ${esAdmin ? '' : `<div class="glass-panel" style="padding:.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;font-size:.85rem;color:var(--text-secondary)">
+                <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+                Como docente, solo puede ver y registrar la asistencia de los eventos/solicitudes que usted mismo creó.
+            </div>`}
             <div class="section-metrics">
                 <div class="metric-chip"><span class="metric-label">Total registros</span><strong>${asistencias.length}</strong></div>
                 <div class="metric-chip"><span class="metric-label">Presentes</span><strong>${asistencias.filter(a=>a.asistio==='Si').length}</strong></div>
@@ -827,14 +1131,31 @@ async function renderAsistencias() {
 
                 <!-- FORM REGISTRAR ESTUDIANTE -->
                 <div id="form-registrar-estudiante" style="display:none;margin-bottom:1.5rem;padding:1.25rem;background:rgba(79,70,229,.08);border-radius:var(--radius-md);border:1px solid rgba(79,70,229,.25)">
-                    <h4 style="margin-bottom:1rem"><i class="fas fa-user-graduate" style="margin-right:.4rem;color:#4F46E5"></i>Registrar Nuevo Estudiante</h4>
-                    <div class="form-row">
-                        <div class="form-group"><label>Nombre *</label><input type="text" id="est-nombre" class="form-control" placeholder="Nombre"></div>
-                        <div class="form-group"><label>Apellido *</label><input type="text" id="est-apellido" class="form-control" placeholder="Apellido"></div>
+                    <h4 style="margin-bottom:1rem"><i class="fas fa-user-graduate" style="margin-right:.4rem;color:#4F46E5"></i>Registrar Estudiante</h4>
+                    <div class="form-group" style="margin-bottom:1rem">
+                        <label>¿La persona ya está registrada en el sistema?</label>
+                        <select id="est-modo" class="form-control" onchange="toggleModoEstudiante()">
+                            <option value="nueva">No, registrar una persona nueva</option>
+                            <option value="existente">Sí, vincular una persona ya existente</option>
+                        </select>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group"><label>Cédula *</label><input type="text" id="est-cedula" class="form-control" placeholder="V-12345678"></div>
-                        <div class="form-group"><label>Teléfono</label><input type="text" id="est-telefono" class="form-control" placeholder="0412-1234567"></div>
+                    <div id="est-bloque-existente" style="display:none;margin-bottom:.5rem">
+                        <div class="form-group"><label>Persona ya registrada *</label>
+                            <select id="est-persona-existente" class="form-control">
+                                <option value="">Seleccione una persona…</option>
+                                ${opPersonasDisponibles}
+                            </select>
+                        </div>
+                    </div>
+                    <div id="est-bloque-nueva">
+                        <div class="form-row">
+                            <div class="form-group"><label>Nombre *</label><input type="text" id="est-nombre" class="form-control" placeholder="Nombre" maxlength="40"></div>
+                            <div class="form-group"><label>Apellido *</label><input type="text" id="est-apellido" class="form-control" placeholder="Apellido" maxlength="40"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Cédula *</label>${cedulaInputHTML('est-cedula')}</div>
+                            <div class="form-group"><label>Teléfono</label><input type="text" id="est-telefono" class="form-control" placeholder="0412-1234567"></div>
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Año *</label><select id="est-ano" class="form-control">${opAno}</select></div>
@@ -864,8 +1185,9 @@ async function renderAsistencias() {
                     </div>
                 </div>
 
+                ${barraBusqueda('Buscar por estudiante, cédula o asistencia...',[{idx:1,label:'Estudiante'},{idx:2,label:'Año/Sección'},{idx:4,label:'Asistencia'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
-                    <thead><tr><th>ID</th><th>Estudiante</th><th>Año/Sección</th><th>Solicitud</th><th>Asistencia</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Estudiante</th><th>Año/Sección</th><th>Solicitud</th><th>Asistencia</th><th>Acciones</th></tr></thead>
                     <tbody>${filas||'<tr><td colspan="6" class="empty-state">Sin registros de asistencia</td></tr>'}</tbody>
                 </table></div>
             </div>
@@ -882,13 +1204,28 @@ function toggleFormAsistencia() {
     f.style.display = f.style.display === 'none' ? 'block' : 'none';
     if (f.style.display === 'block') { document.getElementById('form-registrar-estudiante').style.display='none'; f.scrollIntoView({behavior:'smooth'}); }
 }
+function toggleModoEstudiante() {
+    const modo = document.getElementById('est-modo')?.value;
+    document.getElementById('est-bloque-existente').style.display = modo === 'existente' ? 'block' : 'none';
+    document.getElementById('est-bloque-nueva').style.display = modo === 'existente' ? 'none' : 'block';
+}
 async function guardarEstudiante() {
+    const modo    = document.getElementById('est-modo')?.value;
+    const año     = document.getElementById('est-ano')?.value;
+    const seccion = document.getElementById('est-seccion')?.value;
+
+    if (modo === 'existente') {
+        const id_persona_existente = document.getElementById('est-persona-existente')?.value;
+        if (!id_persona_existente || !año) return showToast('Seleccione la persona y el año','error');
+        const r = await api('POST','/asistencias/registrar-estudiante',{id_persona_existente,año,seccion});
+        if (r.ok) { showToast(r.msg,'success'); renderAsistencias(); } else showToast(r.msg,'error');
+        return;
+    }
+
     const nombre   = val('est-nombre');
     const apellido = val('est-apellido');
-    const cedula   = val('est-cedula');
+    const cedula   = leerCedula('est-cedula');
     const telefono = val('est-telefono');
-    const año      = document.getElementById('est-ano')?.value;
-    const seccion  = document.getElementById('est-seccion')?.value;
     if (!nombre||!apellido||!cedula||!año) return showToast('Complete los campos requeridos','error');
     const r = await api('POST','/asistencias/registrar-estudiante',{nombre,apellido,cedula,telefono,año,seccion});
     if (r.ok) { showToast(r.msg,'success'); renderAsistencias(); } else showToast(r.msg,'error');
@@ -930,8 +1267,10 @@ async function renderReservas() {
             <div class="section-metrics">
                 <div class="metric-chip"><span class="metric-label">Reservas aprobadas</span><strong>${r.reservas.length}</strong></div>
             </div>
-            <div class="glass-panel"><div class="table-responsive"><table class="premium-table">
-                <thead><tr><th>ID</th><th>Actividad / Espacio</th><th>Docente</th><th>Fecha y Horario</th><th>Equipos</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <div class="glass-panel">
+                ${barraBusqueda('Buscar por actividad, docente o estado...',[{idx:1,label:'Actividad/Espacio'},{idx:2,label:'Docente'},{idx:3,label:'Fecha'},{idx:5,label:'Estado'}])}
+                <div class="table-responsive"><table class="premium-table">
+                <thead><tr><th>Código</th><th>Actividad / Espacio</th><th>Docente</th><th>Fecha y Horario</th><th>Equipos</th><th>Estado</th><th>Acciones</th></tr></thead>
                 <tbody>${filas||'<tr><td colspan="7" class="empty-state">No hay reservas activas</td></tr>'}</tbody>
             </table></div></div>
         </div>`;
@@ -984,8 +1323,9 @@ async function renderMantenimiento() {
                         <button class="btn btn-outline" onclick="ocultarFormulario('form-mantenimiento')">Cancelar</button>
                     </div>
                 </div>
+                ${barraBusqueda('Buscar por equipo, serial, técnico o prioridad...',[{idx:1,label:'Equipo'},{idx:2,label:'Serial'},{idx:3,label:'Prioridad'},{idx:4,label:'Técnico'},{idx:5,label:'Fecha'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
-                    <thead><tr><th>ID</th><th>Equipo / Descripción</th><th>Serial</th><th>Prioridad</th><th>Técnico</th><th>Fecha</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Equipo / Descripción</th><th>Serial</th><th>Prioridad</th><th>Técnico</th><th>Fecha</th><th>Acciones</th></tr></thead>
                     <tbody>${filas||'<tr><td colspan="7" class="empty-state">Sin reportes</td></tr>'}</tbody>
                 </table></div>
             </div>
@@ -1039,8 +1379,9 @@ async function renderTecnicos() {
                         <button class="btn btn-outline" onclick="ocultarFormulario('form-tecnico')">Cancelar</button>
                     </div>
                 </div>
+                ${barraBusqueda('Buscar por nombre, cédula o especialidad...',[{idx:1,label:'Técnico'},{idx:2,label:'Especialidad'},{idx:3,label:'Teléfono'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
-                    <thead><tr><th>ID</th><th>Técnico</th><th>Especialidad</th><th>Teléfono</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Técnico</th><th>Especialidad</th><th>Teléfono</th><th>Acciones</th></tr></thead>
                     <tbody>${filas||'<tr><td colspan="4" class="empty-state">Sin técnicos registrados</td></tr>'}</tbody>
                 </table></div>
             </div>
@@ -1091,13 +1432,14 @@ async function renderPersonas() {
                         <div class="form-group"><label>Apellido</label><input type="text" id="per-apellido" class="form-control"></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>Cédula</label><input type="text" id="per-cedula" class="form-control" placeholder="V-12345678"></div>
+                        <div class="form-group"><label>Cédula</label>${cedulaInputHTML('per-cedula')}</div>
                         <div class="form-group"><label>Teléfono</label><input type="text" id="per-telefono" class="form-control" placeholder="0412-1234567"></div>
                     </div>
                     <div class="form-actions"><button class="btn btn-primary" onclick="guardarPersona()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-persona')">Cancelar</button></div>
                 </div>
+                ${barraBusqueda('Buscar por nombre, apellido o cédula...',[{idx:1,label:'Nombre'},{idx:2,label:'Apellido'},{idx:3,label:'Cédula'},{idx:4,label:'Teléfono'}])}
                 <div class="table-responsive"><table class="premium-table">
-                    <thead><tr><th>ID</th><th>Nombre</th><th>Apellido</th><th>Cédula</th><th>Teléfono</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Nombre</th><th>Apellido</th><th>Cédula</th><th>Teléfono</th><th>Acciones</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table></div>
             </div>
@@ -1108,17 +1450,18 @@ function editarPersona(p) {
     document.getElementById('form-per-titulo').textContent='Editar Persona';
     document.getElementById('per-nombre').value=p.nombre;
     document.getElementById('per-apellido').value=p.apellido;
-    document.getElementById('per-cedula').value=p.cedula;
+    escribirCedula('per-cedula', p.cedula);
     document.getElementById('per-telefono').value=p.telefono;
     form.scrollIntoView({behavior:'smooth'});
 }
 function mostrarFormularioPersona() {
     const form=document.getElementById('form-persona'); form.style.display='block'; form.dataset.editId='';
     document.getElementById('form-per-titulo').textContent='Registrar Nueva Persona';
-    ['per-nombre','per-apellido','per-cedula','per-telefono'].forEach(id=>document.getElementById(id).value='');
+    ['per-nombre','per-apellido','per-telefono'].forEach(id=>document.getElementById(id).value='');
+    escribirCedula('per-cedula', '');
 }
 async function guardarPersona() {
-    const nombre=val('per-nombre'),apellido=val('per-apellido'),cedula=val('per-cedula'),telefono=val('per-telefono');
+    const nombre=val('per-nombre'),apellido=val('per-apellido'),cedula=leerCedula('per-cedula'),telefono=val('per-telefono');
     if(!nombre||!apellido||!cedula||!telefono)return showToast('Complete todos los campos','error');
     const editId=document.getElementById('form-persona').dataset.editId;
     const r=editId?await api('PUT',`/personas/${editId}`,{nombre,apellido,cedula,telefono}):await api('POST','/personas',{nombre,apellido,cedula,telefono});
@@ -1172,8 +1515,9 @@ async function renderUsuarios() {
                     </div>
                     <div class="form-actions"><button class="btn btn-primary" onclick="guardarUsuario()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-usuario')">Cancelar</button></div>
                 </div>
+                ${barraBusqueda('Buscar por usuario, correo o rol...',[{idx:1,label:'Usuario'},{idx:2,label:'Persona'},{idx:3,label:'Correo'},{idx:4,label:'Estado'},{idx:5,label:'Rol'}])}
                 <div class="table-responsive"><table class="premium-table">
-                    <thead><tr><th>ID</th><th>Usuario</th><th>Persona</th><th>Correo</th><th>Estado</th><th>Rol</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Usuario</th><th>Persona</th><th>Correo</th><th>Estado</th><th>Rol</th><th>Acciones</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table></div>
             </div>
@@ -1271,8 +1615,9 @@ async function renderEspacios() {
                         <button class="btn btn-outline" onclick="ocultarFormulario('form-espacio')">Cancelar</button>
                     </div>
                 </div>
+                ${barraBusqueda('Buscar espacio...',[{idx:1,label:'Nombre'},{idx:2,label:'Capacidad'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
-                    <thead><tr><th>ID</th><th>Nombre</th><th>Capacidad</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Nombre</th><th>Capacidad</th><th>Acciones</th></tr></thead>
                     <tbody>${filas||'<tr><td colspan="4" class="empty-state">Sin espacios registrados</td></tr>'}</tbody>
                 </table></div>
             </div>
@@ -1320,19 +1665,20 @@ const TABS_REPORTE = [
     { key:'actividades',       label:'Actividades',          icon:'fas fa-chalkboard',      admin:false },
     { key:'fallas',            label:'Fallas Técnicas',      icon:'fas fa-exclamation-triangle', admin:false },
     { key:'mantenimiento',     label:'Mantenimiento',        icon:'fas fa-tools',           admin:false },
+    { key:'asistencia',        label:'Asistencia',           icon:'fas fa-clipboard-user',  admin:false },
     { key:'maquinas-usadas',   label:'Máquinas más usadas',  icon:'fas fa-fire',            admin:false },
 ];
 
 function tabsHTML(activo) {
     const esAdmin = usuarioActual?.roles === 'Administrador';
-    return `<div id="tabs-reporte" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.75rem;border-bottom:1px solid rgba(255,255,255,.1)">
+    return `<div id="tabs-reporte" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.75rem;border-bottom:1px solid var(--glass-border)">
         ${TABS_REPORTE.filter(t => !t.admin || esAdmin).map(t => `
-        <button class="reporte-tab" data-tab="${t.key}"
+        <button class="reporte-tab${t.key===activo?' active':''}" data-tab="${t.key}"
             onclick="cargarTabReporte('${t.key}')"
-            style="background:${t.key===activo?'var(--accent-primary,#4F46E5)':'rgba(255,255,255,.06)'};
-                   color:#fff;border:1px solid rgba(255,255,255,.1);padding:.4rem .85rem;
+            style="background:${t.key===activo?'var(--primary,#4F46E5)':'var(--bg-main)'};
+                   color:${t.key===activo?'#fff':'var(--text-primary)'};border:1px solid var(--glass-border);padding:.4rem .85rem;
                    border-radius:8px;cursor:pointer;font-size:.8rem;display:flex;
-                   align-items:center;gap:.35rem;white-space:nowrap;transition:background .2s">
+                   align-items:center;gap:.35rem;white-space:nowrap;transition:background .2s,color .2s">
             <i class="${t.icon}"></i>${t.label}
         </button>`).join('')}
     </div>`;
@@ -1406,7 +1752,10 @@ function _construirVistaReportes(tabActivo) {
 async function cargarTabReporte(tab) {
     // Actualizar estilo de tabs
     document.querySelectorAll('.reporte-tab').forEach(t => {
-        t.style.background = t.dataset.tab === tab ? 'var(--accent-primary,#4F46E5)' : 'rgba(255,255,255,.06)';
+        const isActive = t.dataset.tab === tab;
+        t.classList.toggle('active', isActive);
+        t.style.background = isActive ? 'var(--primary,#4F46E5)' : 'var(--bg-main)';
+        t.style.color = isActive ? '#fff' : 'var(--text-primary)';
     });
     const cont = document.getElementById('reporte-contenido');
     cont.innerHTML = '<div style="text-align:center;padding:2rem;opacity:.4"><i class="fas fa-spinner fa-spin fa-2x"></i> Cargando...</div>';
@@ -1425,6 +1774,7 @@ async function cargarTabReporte(tab) {
         case 'actividades':        _renderTabActividades(r, fecha); break;
         case 'fallas':             _renderTabFallas(r, fecha); break;
         case 'mantenimiento':      _renderTabMantenimiento(r, fecha); break;
+        case 'asistencia':         _renderTabAsistencia(r, fecha); break;
         case 'maquinas-usadas':    _renderTabMaquinas(r, fecha); break;
     }
 }
@@ -1599,6 +1949,38 @@ function _renderTabMantenimiento(r, fecha) {
     _reporteActual = { titulo:`Reporte de Mantenimiento de Equipos — ${fecha}`, columnas:cols, filas };
 }
 
+// RF: reporte de asistencia ordenado con los datos del docente y las actividades realizadas.
+function _renderTabAsistencia(r, fecha) {
+    const cols = ['Docente','Cédula Docente','Fecha','Actividad Realizada','Espacio','Estudiante','Año/Sección','Asistió'];
+    const datos = r.asistencia || [];
+    const filas = datos.map(a=>[
+        `${a.docente_nombre||''} ${a.docente_apellido||''}`.trim()||'—',
+        a.docente_cedula||'—',
+        a.fecha?new Date(a.fecha).toLocaleDateString('es-ES'):'—',
+        a.actividad_nombre||'—',
+        a.espacio_nombre||'—',
+        `${a.estudiante_nombre||''} ${a.estudiante_apellido||''}`.trim()||'—',
+        `${a.año||'—'} ${a.seccion||''}`.trim(),
+        a.asistio==='Si'?'Presente':'Ausente'
+    ]);
+    const presentes = datos.filter(a=>a.asistio==='Si').length;
+    // Agrupar cantidad de registros por docente, ya para un resumen visual rápido
+    const porDocente = {};
+    datos.forEach(a => { const k = `${a.docente_nombre||''} ${a.docente_apellido||''}`.trim()||'—'; porDocente[k]=(porDocente[k]||0)+1; });
+    const topDocentes = Object.entries(porDocente).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([nombre,total])=>({nombre,total}));
+    const maxD = Math.max(...topDocentes.map(d=>d.total), 1);
+    document.getElementById('reporte-contenido').innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
+            ${kpi('Total registros',datos.length,'fas fa-clipboard-user','purple')}
+            ${kpi('Presentes',presentes,'fas fa-check-circle','green')}
+            ${kpi('Ausentes',datos.length-presentes,'fas fa-times-circle','orange')}
+        </div>
+        ${topDocentes.length ? `<h4 style="margin-bottom:.75rem;opacity:.7"><i class="fas fa-chalkboard-teacher" style="margin-right:.3rem"></i>Registros por docente</h4>
+        ${barraH(topDocentes, maxD, 'linear-gradient(90deg,#4F46E5,#7C3AED)')}` : ''}
+        ${tablaHTML(cols, filas)}`;
+    _reporteActual = { titulo:`Reporte de Asistencia por Docente — ${fecha}`, columnas:cols, filas };
+}
+
 function _renderTabMaquinas(r, fecha) {
     const cols = ['Equipo','Marca','Modelo','Total Usos'];
     const filas = (r.maquinas||[]).map(m=>[m.equipo_nombre,m.marca||'—',m.modelo_nombre||'—',m.total_usos]);
@@ -1680,6 +2062,8 @@ document.getElementById('logout-btn')?.addEventListener('click', async e => {
     usuarioActual = null;
     document.getElementById('app-screen').style.display = 'none';
     document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('btn-ayuda-flotante').style.display = 'none';
+    desconectarSocket();
     document.getElementById('login-user').value = '';
     document.getElementById('login-pass').value = '';
     showToast('Sesión cerrada correctamente','success');
@@ -1696,6 +2080,309 @@ document.getElementById('eye-toggle')?.addEventListener('click', function() {
 });
 document.getElementById('login-pass')?.addEventListener('keypress', e => { if(e.key==='Enter') iniciarSesion(); });
 
+// ==================== HISTORIAL DE ACTIVIDADES (Admin) ====================
+async function renderHistorial(filtros = {}) {
+    setContainer(loadingPanel('Historial de Actividades','view-historial'));
+    const qs = new URLSearchParams(filtros).toString();
+    const r = await api('GET', '/historial' + (qs ? `?${qs}` : ''));
+    if (!r.ok) return;
+    const { historial, usuarios, modulos } = r;
+
+    const hoy = new Date().toDateString();
+    const totalHoy = historial.filter(h => new Date(h.fecha).toDateString() === hoy).length;
+
+    const opUsuarios = usuarios.map(u => `<option value="${u.id_usuario}" ${String(filtros.id_usuario)===String(u.id_usuario)?'selected':''}>${u.nombre||''} ${u.apellido||''} (${u.nombre_usuario})</option>`).join('');
+    const opModulos = modulos.map(m => `<option value="${m}" ${filtros.modulo===m?'selected':''}>${m}</option>`).join('');
+
+    const iconoAccion = a => a.includes('Creación') ? 'fa-plus-circle' : a.includes('Actualización') ? 'fa-edit' : a.includes('Eliminación') ? 'fa-trash' : a.includes('fallido') ? 'fa-triangle-exclamation' : a.includes('sesión') ? 'fa-right-to-bracket' : 'fa-circle-info';
+    const colorAccion = a => a.includes('Creación') ? 'success' : a.includes('Actualización') ? 'info' : a.includes('Eliminación') ? 'danger' : a.includes('fallido') ? 'warning' : 'purple';
+
+    const filas = historial.map(h => `<tr>
+        <td>${new Date(h.fecha).toLocaleString('es-ES')}</td>
+        <td>${h.usuario || 'Sistema'}</td>
+        <td><span class="status-badge ${colorAccion(h.accion)}"><i class="fas ${iconoAccion(h.accion)}" style="margin-right:.3rem"></i>${h.accion}</span></td>
+        <td><span class="table-tag">${h.modulo}</span></td>
+        <td style="opacity:.8">${h.detalle || '—'}</td>
+        <td style="opacity:.5;font-size:.78rem">${h.ip || '—'}</td>
+    </tr>`).join('');
+
+    document.getElementById('views-container').innerHTML = `
+        <div id="view-historial" class="view-section active">
+            <div class="section-header"><h1 class="page-title">Historial de Actividades del Sistema</h1></div>
+            <div class="section-metrics">
+                <div class="metric-chip"><span class="metric-label">Registros mostrados</span><strong>${historial.length}</strong></div>
+                <div class="metric-chip"><span class="metric-label">Hoy</span><strong>${totalHoy}</strong></div>
+            </div>
+            <div class="glass-panel">
+                <div class="panel-toolbar"><h3>Bitácora del Sistema</h3></div>
+                <div class="barra-busqueda-modulo" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;padding:.75rem 1rem;margin-bottom:1rem;background:rgba(79,70,229,0.04);border:1px solid rgba(79,70,229,0.12);border-radius:10px">
+                    <select id="hist-usuario" class="form-control" style="max-width:220px"><option value="">Todos los usuarios</option>${opUsuarios}</select>
+                    <select id="hist-modulo" class="form-control" style="max-width:180px"><option value="">Todos los módulos</option>${opModulos}</select>
+                    <input type="date" id="hist-desde" class="form-control" style="max-width:160px" value="${filtros.desde||''}">
+                    <input type="date" id="hist-hasta" class="form-control" style="max-width:160px" value="${filtros.hasta||''}">
+                    <button class="btn btn-primary" onclick="aplicarFiltrosHistorial()"><i class="fas fa-filter"></i> Filtrar</button>
+                    <button class="btn btn-outline" onclick="renderHistorial()"><i class="fas fa-rotate"></i> Limpiar</button>
+                </div>
+                <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
+                    <thead><tr><th>Fecha y Hora</th><th>Usuario</th><th>Acción</th><th>Módulo</th><th>Detalle</th><th>IP</th></tr></thead>
+                    <tbody>${filas || '<tr><td colspan="6" class="empty-state">Sin registros en el historial</td></tr>'}</tbody>
+                </table></div>
+            </div>
+        </div>`;
+}
+function aplicarFiltrosHistorial() {
+    renderHistorial({
+        id_usuario: document.getElementById('hist-usuario').value,
+        modulo: document.getElementById('hist-modulo').value,
+        desde: document.getElementById('hist-desde').value,
+        hasta: document.getElementById('hist-hasta').value
+    });
+}
+
+// ==================== AYUDA CONTEXTUAL (Manual de Sistema) ====================
+const MANUAL_AYUDA = {
+    dashboard: {
+        titulo: 'Panel Principal',
+        icono: 'fa-home',
+        descripcion: 'Muestra un resumen general del estado del CBIT: inventario de equipos, solicitudes y reservas activas.',
+        pasos: ['Revise las tarjetas de "Inventario de Equipos" para ver cuántos equipos están operativos, en reparación, no operativos o dañados.', 'Revise "Solicitudes y Reservas" para ver cuántas están pendientes de aprobación.'],
+        consejos: ['Este panel se actualiza cada vez que entra al sistema.', 'Si algo aparece en "Dañados", vaya al módulo de Mantenimiento para reportarlo.']
+    },
+    calendario: {
+        titulo: 'Calendario de Reservas',
+        icono: 'fa-calendar-alt',
+        descripcion: 'Muestra en formato semanal todas las reservas de espacios ya aprobadas.',
+        pasos: ['Use las flechas para moverse entre semanas.', 'Haga clic sobre una reserva para ver su detalle (espacio, actividad, docente, horario).'],
+        consejos: ['Solo se muestran reservas con estado "Aprobado". Las pendientes se ven en el módulo de Solicitudes.']
+    },
+    categorias: {
+        titulo: 'Categorías de Equipos',
+        icono: 'fa-tags',
+        descripcion: 'Agrupa los equipos tecnológicos por tipo (ej. Laptops, Proyectores, Tablets).',
+        pasos: ['Clic en "Nueva Categoría" e ingrese un nombre único (2 a 60 caracteres).', 'Para editar, use el ícono de lápiz en la fila correspondiente.'],
+        consejos: ['No se puede eliminar una categoría que tenga equipos asociados.', 'No se permiten nombres duplicados.']
+    },
+    marcas: {
+        titulo: 'Marcas de Equipos',
+        icono: 'fa-trademark',
+        descripcion: 'Administra las marcas de fabricantes (ej. HP, Dell, Lenovo) usadas en el catálogo de equipos.',
+        pasos: ['Clic en "Nueva Marca" e ingrese el nombre del fabricante.', 'Edite o elimine usando los íconos de la tabla.'],
+        consejos: ['No se puede eliminar una marca en uso por algún equipo.']
+    },
+    modelos: {
+        titulo: 'Modelos de Equipos',
+        icono: 'fa-cubes',
+        descripcion: 'Administra los modelos específicos de equipo (ej. "ProBook 450 G8", "PowerLite X05") que luego se asocian al registrar un equipo en el catálogo.',
+        pasos: ['Clic en "Nuevo Modelo" e ingrese el nombre del modelo y, opcionalmente, una descripción.', 'Edite o elimine usando los íconos de la tabla.'],
+        consejos: ['No se puede eliminar un modelo que ya esté en uso por algún equipo del catálogo.']
+    },
+    equipos: {
+        titulo: 'Catálogo de Equipos',
+        icono: 'fa-laptop',
+        descripcion: 'Define los "modelos" o tipos de equipo del catálogo, asociados a una categoría y una marca. Es la base para luego registrar unidades físicas en Inventario.',
+        pasos: ['Complete nombre, categoría y marca (el modelo es opcional).', 'Cada unidad física de este equipo se registra luego en el módulo Inventario, con su propio serial.'],
+        consejos: ['No se puede eliminar un equipo que ya tenga unidades registradas en inventario.']
+    },
+    inventario: {
+        titulo: 'Inventario',
+        icono: 'fa-boxes',
+        descripcion: 'Registra cada unidad física de un equipo: su serial único, ubicación y estado actual (Operativo, No operativo, En Reparación, Dañado).',
+        pasos: ['Seleccione el equipo del catálogo y la ubicación física.', 'Ingrese un serial único (no puede repetirse) y el estado actual.'],
+        consejos: ['El estado se actualiza automáticamente cuando se reporta un mantenimiento.', 'El serial es la forma de identificar de forma única cada unidad.']
+    },
+    actividades: {
+        titulo: 'Actividades Educativas',
+        icono: 'fa-chalkboard',
+        descripcion: 'Catálogo de actividades o materias (ej. "Clase de Robótica") que se usan al crear una solicitud de reserva.',
+        pasos: ['Ingrese nombre y una breve descripción de la actividad.'],
+        consejos: ['No se puede eliminar una actividad que ya tenga solicitudes asociadas.']
+    },
+    solicitudes: {
+        titulo: 'Solicitudes de Uso',
+        icono: 'fa-clipboard-list',
+        descripcion: 'Aquí los docentes solicitan el uso de un espacio y, opcionalmente, equipos, en una fecha y horario específicos. El administrador aprueba o rechaza.',
+        pasos: ['Docente: cree una solicitud indicando espacio, actividad, fecha y horario.', 'Administrador: revise las solicitudes "Pendientes" y apruébelas o cancélelas.', 'Al aprobar o rechazar, el sistema envía un correo automático al docente.'],
+        consejos: ['La fecha no puede ser anterior a hoy.', 'No se puede reservar un espacio si ya está ocupado en ese horario.']
+    },
+    asistencias: {
+        titulo: 'Control de Asistencia',
+        icono: 'fa-clipboard-user',
+        descripcion: 'Registra qué estudiantes asistieron a un evento/solicitud ya aprobado.',
+        pasos: ['Registre primero al estudiante si no existe (nombre, apellido, cédula, año).', 'Luego registre su asistencia asociándola a la solicitud/evento correspondiente.'],
+        consejos: ['Los docentes solo ven y registran la asistencia de los eventos que ellos mismos crearon. El administrador ve la asistencia de todos los eventos.']
+    },
+    reservas: {
+        titulo: 'Reservas Activas',
+        icono: 'fa-calendar-check',
+        descripcion: 'Muestra las solicitudes ya aprobadas que están en curso o próximas, permitiendo marcarlas como finalizadas.',
+        pasos: ['Ubique la reserva en curso y use "Finalizar" cuando el uso del espacio haya terminado.'],
+        consejos: []
+    },
+    mantenimiento: {
+        titulo: 'Mantenimiento',
+        icono: 'fa-tools',
+        descripcion: 'Registra reportes de fallas técnicas sobre un equipo del inventario y asigna un técnico responsable.',
+        pasos: ['Seleccione el técnico, el equipo con falla, el nivel de prioridad y describa el problema.'],
+        consejos: ['Un reporte de mantenimiento actualiza automáticamente el estado del equipo en inventario.']
+    },
+    tecnicos: {
+        titulo: 'Técnicos de Soporte',
+        icono: 'fa-user-gear',
+        descripcion: 'Administra el personal técnico y su especialidad (Hardware, Software, Redes, etc.), usado luego en Mantenimiento.',
+        pasos: ['Seleccione una persona ya registrada y asígnele una especialidad.'],
+        consejos: ['Una persona no puede registrarse dos veces como técnico.']
+    },
+    personas: {
+        titulo: 'Registro de Personas',
+        icono: 'fa-users',
+        descripcion: 'Base de datos central de personas (nombre, apellido, cédula, teléfono) que luego se vincula a Usuarios, Técnicos o Estudiantes.',
+        pasos: ['Registre a la persona antes de crearle un usuario o asignarla como técnico.'],
+        consejos: ['La cédula debe tener formato V-12345678 o E-12345678 y no puede repetirse.']
+    },
+    usuarios: {
+        titulo: 'Usuarios del Sistema',
+        icono: 'fa-user-cog',
+        descripcion: 'Administra las cuentas de acceso al sistema y su rol: Administrador o Docente. Solo el Administrador puede gestionar usuarios.',
+        pasos: ['Seleccione una persona ya registrada, asigne usuario, contraseña y rol.', 'Puede inhabilitar o reactivar una cuenta sin eliminarla.'],
+        consejos: ['La contraseña debe tener mínimo 6 caracteres, con letras y números.', 'El nombre de usuario y el correo no pueden repetirse.']
+    },
+    espacios: {
+        titulo: 'Espacios y Laboratorios',
+        icono: 'fa-door-open',
+        descripcion: 'Administra los espacios físicos disponibles para reserva (laboratorios, salas) y su capacidad.',
+        pasos: ['Solo el Administrador puede crear, editar o eliminar espacios. Los docentes solo pueden consultarlos.'],
+        consejos: []
+    },
+    'disponibilidad-equipos': {
+        titulo: 'Disponibilidad de Equipos',
+        icono: 'fa-microchip',
+        descripcion: 'Consulta rápida de qué equipos del inventario están disponibles para un horario específico, antes de crear una solicitud.',
+        pasos: ['Seleccione fecha y horario para ver los equipos operativos y libres en ese rango.'],
+        consejos: []
+    },
+    reportes: {
+        titulo: 'Reportes e Informes',
+        icono: 'fas fa-chart-bar',
+        descripcion: 'Centraliza todos los reportes del sistema: resumen general, inventario, reservas, fallas técnicas, máquinas más usadas, entre otros.',
+        pasos: ['Use las pestañas superiores para cambiar de reporte.', 'Puede exportar cualquier reporte a Excel o PDF con los botones correspondientes.'],
+        consejos: ['El reporte de "Usuarios" solo está disponible para el Administrador.']
+    },
+    historial: {
+        titulo: 'Historial de Actividades',
+        icono: 'fa-history',
+        descripcion: 'Bitácora de auditoría exclusiva del Administrador: registra quién creó, editó o eliminó información, y cuándo.',
+        pasos: ['Filtre por usuario, módulo o rango de fechas para investigar un cambio específico.'],
+        consejos: ['Los inicios de sesión fallidos también quedan registrados aquí, útil para detectar accesos indebidos.']
+    }
+};
+
+function mostrarAyuda(moduloKey) {
+    const key = moduloKey || vistaActual;
+    const ayuda = MANUAL_AYUDA[key] || MANUAL_AYUDA.dashboard;
+    document.getElementById('modal-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    overlay.innerHTML = `
+        <div style="background:var(--bg-surface,#1e1e2e);border:1px solid var(--glass-border,rgba(255,255,255,0.1));border-radius:16px;padding:2rem;min-width:320px;max-width:560px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <h3 style="margin:0;color:var(--text-primary);display:flex;align-items:center;gap:.5rem"><i class="fas ${ayuda.icono}" style="color:var(--primary,#4F46E5)"></i> ${ayuda.titulo}</h3>
+                <button onclick="document.getElementById('modal-overlay').remove()" style="background:none;border:none;color:var(--text-secondary);font-size:1.4rem;cursor:pointer;padding:0.2rem 0.5rem;">&times;</button>
+            </div>
+            <p style="color:var(--text-secondary);font-size:.9rem;margin-bottom:1.1rem;line-height:1.5">${ayuda.descripcion}</p>
+            ${ayuda.pasos?.length ? `<h4 style="font-size:.85rem;color:var(--text-primary);margin-bottom:.5rem"><i class="fas fa-list-ol" style="margin-right:.4rem;opacity:.7"></i>Cómo usarlo</h4>
+            <ol style="margin:0 0 1.1rem 1.1rem;padding:0;color:var(--text-secondary);font-size:.85rem;line-height:1.7">${ayuda.pasos.map(p=>`<li>${p}</li>`).join('')}</ol>` : ''}
+            ${ayuda.consejos?.length ? `<h4 style="font-size:.85rem;color:var(--text-primary);margin-bottom:.5rem"><i class="fas fa-lightbulb" style="margin-right:.4rem;opacity:.7"></i>Consejos</h4>
+            <ul style="margin:0 0 1.1rem 1.1rem;padding:0;color:var(--text-secondary);font-size:.85rem;line-height:1.7">${ayuda.consejos.map(c=>`<li>${c}</li>`).join('')}</ul>` : ''}
+            <div style="display:flex;justify-content:flex-end;gap:.6rem;border-top:1px solid var(--glass-border);padding-top:1rem;margin-top:.5rem">
+                <a href="/manual-usuario-cbit-manager.pdf" target="_blank" rel="noopener" class="btn btn-outline" style="text-decoration:none"><i class="fas fa-file-pdf" style="color:#e53e3e;margin-right:.3rem"></i>Manual completo (PDF)</a>
+                <button class="btn btn-primary" onclick="document.getElementById('modal-overlay').remove()">Entendido</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// ==================== TIEMPO REAL (Socket.IO) Y SONIDO DE NOTIFICACIÓN ====================
+let socket = null;
+let audioCtx = null;
+
+// Genera un sonido de notificación corto (dos tonos ascendentes) sin necesidad
+// de archivos de audio externos, usando la Web Audio API.
+function reproducirSonidoActualizacion() {
+    try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const ahora = audioCtx.currentTime;
+        [[880, ahora], [1174.66, ahora + 0.11]].forEach(([freq, inicio]) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.0001, inicio);
+            gain.gain.exponentialRampToValueAtTime(0.18, inicio + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.16);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(inicio);
+            osc.stop(inicio + 0.18);
+        });
+    } catch (e) { /* Audio no disponible en este navegador/contexto: se ignora silenciosamente */ }
+}
+
+// Qué vistas deben refrescarse cuando cambia un módulo determinado
+// (una misma acción puede afectar datos visibles en varias pantallas).
+const RELACIONES_MODULO = {
+    categorias: ['categorias', 'equipos', 'dashboard'],
+    marcas: ['marcas', 'equipos', 'dashboard'],
+    modelos: ['modelos', 'equipos', 'dashboard'],
+    equipos: ['equipos', 'inventario', 'modelos', 'disponibilidad-equipos', 'dashboard'],
+    inventario: ['inventario', 'equipos', 'mantenimiento', 'disponibilidad-equipos', 'dashboard', 'reportes'],
+    actividades: ['actividades', 'solicitudes', 'dashboard'],
+    solicitudes: ['solicitudes', 'calendario', 'reservas', 'asistencias', 'disponibilidad-equipos', 'dashboard', 'reportes'],
+    reservas: ['reservas', 'calendario', 'solicitudes', 'dashboard'],
+    mantenimiento: ['mantenimiento', 'inventario', 'dashboard', 'reportes'],
+    tecnicos: ['tecnicos', 'mantenimiento', 'personas', 'dashboard'],
+    asistencias: ['asistencias', 'dashboard'],
+    usuarios: ['usuarios', 'personas', 'dashboard'],
+    personas: ['personas', 'usuarios', 'tecnicos', 'asistencias', 'dashboard'],
+    espacios: ['espacios', 'solicitudes', 'calendario', 'dashboard'],
+    historial: ['historial'],
+};
+
+function conectarSocket() {
+    if (socket || typeof io === 'undefined') return;
+    socket = io({ withCredentials: true });
+
+    socket.on('data:changed', (data) => {
+        reproducirSonidoActualizacion();
+
+        const nombrePropio = usuarioActual ? `${usuarioActual.nombre || ''} ${usuarioActual.apellido || ''}`.trim() : '';
+
+        // Avisos de inicio/cierre de sesión: se muestran con el texto exacto
+        // que envía el servidor (ej. "Eddy Pacheco ha iniciado sesión").
+        if (data.tipo === 'sesion') {
+            if (data.usuario !== nombrePropio) showToast(data.detalle, 'info');
+            return;
+        }
+
+        if (data.usuario && nombrePropio && data.usuario !== nombrePropio) {
+            showToast(`${data.usuario} hizo una ${(data.accion || '').toLowerCase()} en ${data.moduloLabel}`, 'info');
+        }
+
+        // Si hay un formulario/modal abierto, no interrumpimos al usuario:
+        // solo suena la notificación y se avisa por toast, sin recargar datos.
+        const hayModalAbierto = document.getElementById('modal-overlay');
+        const vistasAfectadas = RELACIONES_MODULO[data.modulo] || [data.modulo];
+        if (!hayModalAbierto && vistasAfectadas.includes(vistaActual)) {
+            cargarVista(vistaActual);
+        }
+    });
+}
+
+function desconectarSocket() {
+    if (socket) { socket.disconnect(); socket = null; }
+}
+
 // ==================== VERIFICAR SESIÓN ====================
 (async () => {
     const r = await api('GET','/auth/sesion');
@@ -1704,6 +2391,8 @@ document.getElementById('login-pass')?.addEventListener('keypress', e => { if(e.
 
 // ==================== EXPONER GLOBALES ====================
 Object.assign(window, {
+    // Buscador integrado
+    filtrarTabla, ordenarTablaCol, toggleDirOrden, limpiarBuscador,
     // Auth & nav
     iniciarSesion, recuperarContrasena, showPanel, ocultarFormulario, cargarVista,
     // Calendario
@@ -1712,6 +2401,7 @@ Object.assign(window, {
     mostrarFormularioCategoria, guardarCategoria, eliminarCategoria, editarCategoria,
     // Marcas
     mostrarFormularioMarca, guardarMarca, eliminarMarca, editarMarca,
+    renderModelos, mostrarFormularioModelo, guardarModelo, eliminarModelo, editarModelo,
     // Equipos
     mostrarFormularioEquipo, guardarEquipo, eliminarEquipo, editarEquipo,
     // Inventario
@@ -1728,7 +2418,7 @@ Object.assign(window, {
     // Técnicos
     mostrarFormularioTecnico, guardarTecnico, eliminarTecnico, editarTecnico,
     // Asistencia
-    toggleFormAsistencia, toggleFormRegistrarEstudiante,
+    toggleFormAsistencia, toggleFormRegistrarEstudiante, toggleModoEstudiante,
     guardarAsistencia, guardarEstudiante, eliminarAsistencia,
     // Personas
     mostrarFormularioPersona, guardarPersona, eliminarPersona, editarPersona,
@@ -1738,4 +2428,12 @@ Object.assign(window, {
     mostrarFormularioEspacio, guardarEspacio, eliminarEspacio, editarEspacio,
     // Reportes
     cargarTabReporte, exportarExcel, exportarPDF,
+    // Historial de Actividades
+    renderHistorial, aplicarFiltrosHistorial,
+    // Ayuda contextual
+    mostrarAyuda,
+    // Tiempo real y sonido
+    conectarSocket, desconectarSocket, reproducirSonidoActualizacion,
+    // Navegación móvil
+    toggleSidebar,
 });

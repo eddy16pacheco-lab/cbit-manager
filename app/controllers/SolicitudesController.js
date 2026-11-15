@@ -4,6 +4,7 @@ const Actividad      = require('../models/Actividad');
 const DetalleSolicitud = require('../models/DetalleSolicitud');
 const Usuario        = require('../models/Usuario');
 const { enviarCorreoSolicitud } = require('../helpers/mailer');
+const { requerido, horaValida, esFechaFuturaOHoy, esNumeroPositivo, longitudValida } = require('../helpers/validators');
 
 const SolicitudesController = {
 
@@ -27,17 +28,37 @@ const SolicitudesController = {
     },
 
     async crear(req, res) {
-        const { id_espacio, id_actividad, fecha, hora_inicio, hora_fin, descripcion, aprobar_directo, equipos_ids } = req.body;
+        const { id_espacio, id_actividad, fecha, hora_inicio, hora_fin, descripcion, aprobar_directo, equipos_ids, confirmar_duplicado } = req.body;
         const id_usuario = req.session.usuario?.id_usuario;
         const esAdmin    = req.session.usuario?.roles === 'Administrador';
         if (!id_espacio || !id_actividad || !fecha || !hora_inicio || !hora_fin)
             return res.json({ ok: false, msg: 'Complete todos los campos requeridos' });
-        if (hora_inicio >= hora_fin)
+        if (!esNumeroPositivo(id_espacio)) return res.json({ ok: false, msg: 'Seleccione un espacio válido' });
+        if (!esNumeroPositivo(id_actividad)) return res.json({ ok: false, msg: 'Seleccione una actividad válida' });
+        if (!esFechaFuturaOHoy(fecha)) return res.json({ ok: false, msg: 'La fecha de la reserva no puede ser anterior a hoy' });
+        if (!horaValida(hora_inicio, hora_fin))
             return res.json({ ok: false, msg: 'La hora de inicio debe ser menor que la hora de fin' });
+        if (descripcion && !longitudValida(descripcion, 0, 500))
+            return res.json({ ok: false, msg: 'La descripción no debe exceder 500 caracteres' });
         try {
             const disponible = await Solicitud.checkDisponibilidad(id_espacio, fecha, hora_inicio, hora_fin);
             if (!disponible)
                 return res.json({ ok: false, msg: 'El espacio ya está reservado en ese horario' });
+
+            // RF: si ya existe otra solicitud con la MISMA fecha y el MISMO horario
+            // (en cualquier espacio), se avisa antes de crear, por si se trata de un
+            // registro duplicado por error. El usuario puede confirmar y continuar.
+            if (!confirmar_duplicado) {
+                const similares = await Solicitud.findSimilares(fecha, hora_inicio, hora_fin);
+                if (similares.length > 0) {
+                    const detalle = similares.map(s => `"${s.actividad_nombre||'N/A'}" en ${s.espacio_nombre||'N/A'} (${s.docente_nombre||''} ${s.docente_apellido||''})`.trim()).join('; ');
+                    return res.json({
+                        ok: false,
+                        duplicado: true,
+                        msg: `Ya existe ${similares.length > 1 ? 'otras solicitudes' : 'otra solicitud'} registrada en la misma fecha y horario: ${detalle}. ¿Desea continuar de todas formas?`
+                    });
+                }
+            }
 
             const estado = (esAdmin && aprobar_directo) ? 'Aprobado' : 'Pendiente';
             const id = await Solicitud.create({ id_espacio, id_actividad, id_usuario, fecha, hora_inicio, hora_fin, descripcion, estado });
@@ -61,6 +82,8 @@ const SolicitudesController = {
         const { id_espacio, id_actividad, fecha, hora_inicio, hora_fin, descripcion, equipos_ids } = req.body;
         if (!id_espacio || !id_actividad || !fecha || !hora_inicio || !hora_fin)
             return res.json({ ok: false, msg: 'Complete todos los campos' });
+        if (!horaValida(hora_inicio, hora_fin))
+            return res.json({ ok: false, msg: 'La hora de inicio debe ser menor que la hora de fin' });
         try {
             await Solicitud.update(req.params.id, { id_espacio, id_actividad, fecha, hora_inicio, hora_fin, descripcion });
             if (equipos_ids !== undefined) {

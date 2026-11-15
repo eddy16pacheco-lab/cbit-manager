@@ -132,6 +132,39 @@ const ReportesController = {
             const rows = await DetalleSolicitud.maquinasMasUsadas();
             res.json({ ok: true, maquinas: rows });
         } catch(e) { res.json({ ok: false, msg: e.message }); }
+    },
+    // RF: reporte de asistencia ordenado por los datos del docente, mostrando
+    // también la actividad realizada en cada evento.
+    async asistenciaReporte(req, res) {
+        try {
+            const usuarioSesion = req.session.usuario;
+            const esAdmin = usuarioSesion?.roles === 'Administrador';
+            const filtroDocente = esAdmin ? '' : 'WHERE u.id_usuario = ?';
+            const params = esAdmin ? [] : [usuarioSesion.id_usuario];
+
+            const [rows] = await db.execute(
+                `SELECT
+                    a.id_asistencia, a.asistio,
+                    s.id_solicitud, s.fecha, s.hora_inicio, s.hora_fin,
+                    act.nombre AS actividad_nombre,
+                    esp.nombre AS espacio_nombre,
+                    pdoc.nombre AS docente_nombre, pdoc.apellido AS docente_apellido, pdoc.cedula AS docente_cedula,
+                    pest.nombre AS estudiante_nombre, pest.apellido AS estudiante_apellido, pest.cedula AS estudiante_cedula,
+                    est.año, est.seccion
+                 FROM asistencia a
+                 JOIN estudiante est ON a.id_estudiante = est.id_estudiante
+                 JOIN persona pest ON est.id_persona = pest.id_persona
+                 JOIN solicitud s ON a.id_solicitud = s.id_solicitud
+                 JOIN usuario u ON s.id_usuario = u.id_usuario
+                 JOIN persona pdoc ON u.id_persona = pdoc.id_persona
+                 LEFT JOIN actividad act ON s.id_actividad = act.id_actividad
+                 LEFT JOIN espacio esp ON s.id_espacio = esp.id_espacio
+                 ${filtroDocente}
+                 ORDER BY pdoc.apellido ASC, pdoc.nombre ASC, s.fecha DESC, s.hora_inicio ASC`,
+                params
+            );
+            res.json({ ok: true, asistencia: rows });
+        } catch(e) { res.json({ ok: false, msg: e.message }); }
     }
 };
 module.exports = ReportesController;

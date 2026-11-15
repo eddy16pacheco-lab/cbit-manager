@@ -14,6 +14,13 @@ class Persona {
     static async delete(id) {
         await db.execute('DELETE FROM persona WHERE id_persona=?', [id]);
     }
+    static async findByCedula(cedula, excluirId = 0) {
+        const [rows] = await db.execute(
+            'SELECT * FROM persona WHERE cedula=? AND id_persona != ?',
+            [cedula, excluirId]
+        );
+        return rows[0] || null;
+    }
 }
 module.exports = Persona;
 

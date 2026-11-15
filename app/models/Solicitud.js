@@ -65,6 +65,24 @@ class Solicitud {
         );
         return rows.length === 0;
     }
+    // RF: detecta solicitudes ya existentes con la misma fecha y el mismo
+    // horario (exacto), para avisar al usuario que podría estar duplicando
+    // un registro antes de confirmar la creación.
+    static async findSimilares(fecha, hora_inicio, hora_fin, excluir_id = 0) {
+        const [rows] = await db.execute(
+            `SELECT s.id_solicitud, e.nombre AS espacio_nombre, a.nombre AS actividad_nombre,
+                    p.nombre AS docente_nombre, p.apellido AS docente_apellido, s.estado
+             FROM solicitud s
+             LEFT JOIN espacio e ON s.id_espacio=e.id_espacio
+             LEFT JOIN actividad a ON s.id_actividad=a.id_actividad
+             LEFT JOIN usuario u ON s.id_usuario=u.id_usuario
+             LEFT JOIN persona p ON u.id_persona=p.id_persona
+             WHERE s.fecha=? AND s.hora_inicio=? AND s.hora_fin=?
+               AND s.estado != 'Cancelado' AND s.id_solicitud != ?`,
+            [fecha, hora_inicio, hora_fin, excluir_id]
+        );
+        return rows;
+    }
     // Para reportes
     static async reservasEspacios() {
         const [rows] = await db.execute(

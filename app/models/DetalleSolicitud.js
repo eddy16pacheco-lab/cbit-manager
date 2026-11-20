@@ -1,9 +1,10 @@
 const db = require('../../config/database');
+const { Where } = require('../helpers/reportFilters');
 class DetalleSolicitud {
     // Equipos disponibles en la fecha/hora solicitada
     static async equiposDisponibles(fecha, hora_inicio, hora_fin) {
         const [rows] = await db.execute(
-            `SELECT i.id_inventario, i.serial, i.estado,
+            `SELECT i.id_inventario, i.codigo_bien_nacional, i.serial, i.estado,
                     e.nombre AS equipo_nombre, m.nombre AS modelo_nombre,
                     c.nombre AS categoria, ma.nombre AS marca,
                     u.nombre AS ubicacion
@@ -53,24 +54,41 @@ class DetalleSolicitud {
         await db.execute('DELETE FROM detalle_solicitud WHERE id_solicitud=?', [id_solicitud]);
     }
     // Reporte de equipos más usados
-    static async maquinasMasUsadas() {
+    /**
+     * Ranking de uso de equipos.
+     * filtros: { desde, hasta, orden: 'asc'|'desc', limite: n (0 = todos) }
+     *  - Con orden 'desc' (por defecto) solo aparecen equipos con al menos 1 uso.
+     *  - Con orden 'asc' (menos usadas) se incluyen también los equipos con 0 usos.
+     */
+    static async maquinasMasUsadas(filtros = {}) {
+        const orden = filtros.orden === 'asc' ? 'ASC' : 'DESC';
+        const limite = Number.isInteger(filtros.limite) ? filtros.limite : 20;
+        const joinFechas = new Where().rangoFecha('s.fecha', filtros);
+        const extra = joinFechas.cond.length ? ' AND ' + joinFechas.cond.join(' AND ') : '';
         const [rows] = await db.execute(
-            `SELECT e.nombre AS equipo_nombre, ma.nombre AS marca,
-                    m.nombre AS modelo_nombre, COUNT(ds.id_detalle_solicitud) AS total_usos
-             FROM detalle_solicitud ds
-             JOIN inventario i ON ds.id_inventario = i.id_inventario
-             JOIN equipos e ON i.id_equipos = e.id_equipos
+            `SELECT e.id_equipos, e.nombre AS equipo_nombre, ma.nombre AS marca,
+                    m.nombre AS modelo_nombre, COUNT(s.id_solicitud) AS total_usos
+             FROM equipos e
              LEFT JOIN modelo m ON e.id_modelo = m.id_modelo
              LEFT JOIN marca ma ON e.id_marca = ma.id_marca
+             LEFT JOIN inventario i ON i.id_equipos = e.id_equipos
+             LEFT JOIN detalle_solicitud ds ON ds.id_inventario = i.id_inventario
+             LEFT JOIN solicitud s ON s.id_solicitud = ds.id_solicitud${extra}
              GROUP BY e.id_equipos
-             ORDER BY total_usos DESC LIMIT 20`
+             ${orden === 'DESC' ? 'HAVING total_usos > 0' : ''}
+             ORDER BY total_usos ${orden}, e.nombre ASC
+             ${limite > 0 ? `LIMIT ${limite}` : ''}`,
+            joinFechas.params
         );
         return rows;
     }
-    // Reporte reservas de equipos
-    static async reservasEquipos() {
+    // Reporte reservas de equipos. filtros: { desde, hasta, estado }
+    static async reservasEquipos(filtros = {}) {
+        const w = new Where();
+        w.rangoFecha('s.fecha', filtros);
+        if (filtros.estado) w.add('s.estado = ?', filtros.estado);
         const [rows] = await db.execute(
-            `SELECT s.id_solicitud, i.serial, e.nombre AS equipo_nombre,
+            `SELECT s.id_solicitud, i.codigo_bien_nacional, i.serial, e.nombre AS equipo_nombre,
                     m.nombre AS modelo_nombre, s.fecha,
                     s.hora_inicio, s.hora_fin, s.estado,
                     p.nombre AS docente_nombre, p.apellido AS docente_apellido,
@@ -83,7 +101,9 @@ class DetalleSolicitud {
              LEFT JOIN actividad a ON s.id_actividad = a.id_actividad
              LEFT JOIN usuario u ON s.id_usuario = u.id_usuario
              LEFT JOIN persona p ON u.id_persona = p.id_persona
-             ORDER BY s.fecha DESC, s.hora_inicio`
+             ${w.sql()}
+             ORDER BY s.fecha DESC, s.hora_inicio`,
+            w.params
         );
         return rows;
     }

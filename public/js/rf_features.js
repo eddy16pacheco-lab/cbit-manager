@@ -304,27 +304,7 @@ function initValidacionesFormularios() {
         const el = e.target;
         const id = el.id;
 
-        // Cédula
-        if (id === 'per-cedula' || id === 'est-cedula') {
-            const ok = /^[VEve]-?\d{6,8}$/.test(el.value.trim());
-            el.style.borderColor = el.value ? (ok ? '#10B981' : '#EF4444') : '';
-            let hint = el.parentElement.querySelector('.field-hint');
-            if (!hint) {
-                hint = document.createElement('p');
-                hint.className = 'field-hint';
-                hint.style.cssText = 'font-size:.73rem;margin-top:.25rem';
-                el.parentElement.appendChild(hint);
-            }
-            hint.textContent = el.value && !ok ? '⚠ Formato: V-12345678 o E-12345678' : '';
-            hint.style.color = '#EF4444';
-        }
-
-        // Teléfono
-        if (id === 'per-telefono' || id === 'est-telefono') {
-            const clean = el.value.replace(/-/g,'');
-            const ok = /^(0412|0414|0416|0424|0426|0212)\d{7}$/.test(clean);
-            el.style.borderColor = el.value ? (ok ? '#10B981' : '#EF4444') : '';
-        }
+        // Cédula y teléfono: se validan con los manejadores data-validar (campoNumerico, en app.js)
 
         // Correo
         if (id === 'usr-email') {

@@ -1,4 +1,5 @@
 const db = require('../../config/database');
+const { Where } = require('../helpers/reportFilters');
 class Solicitud {
     static async findAll() {
         const [rows] = await db.execute(
@@ -84,7 +85,11 @@ class Solicitud {
         return rows;
     }
     // Para reportes
-    static async reservasEspacios() {
+    // Reporte de reservas de espacio. filtros: { desde, hasta, estado }
+    static async reservasEspacios(filtros = {}) {
+        const w = new Where();
+        w.rangoFecha('s.fecha', filtros);
+        if (filtros.estado) w.add('s.estado = ?', filtros.estado);
         const [rows] = await db.execute(
             `SELECT s.id_solicitud, e.nombre AS espacio, a.nombre AS actividad,
                     p.nombre AS docente_nombre, p.apellido AS docente_apellido,
@@ -94,7 +99,9 @@ class Solicitud {
              LEFT JOIN actividad a ON s.id_actividad=a.id_actividad
              LEFT JOIN usuario u ON s.id_usuario=u.id_usuario
              LEFT JOIN persona p ON u.id_persona=p.id_persona
-             ORDER BY s.fecha DESC`
+             ${w.sql()}
+             ORDER BY s.fecha DESC`,
+            w.params
         );
         return rows;
     }

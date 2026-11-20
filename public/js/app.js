@@ -244,8 +244,73 @@ function inputModal(id, label, type='text', value='', opciones=null) {
     </div>`;
 }
 function val(id) { return document.getElementById(id)?.value?.trim(); }
+function escHtml(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ==================== CAMPO DE CÉDULA (prefijo V-/E- fijo + solo números) ====================
+// ==================== VALIDACIÓN DE CÉDULA Y TELÉFONO (Venezuela) ====================
+// Mismas reglas que el backend (app/helpers/validators.js) y la base de datos (migración 006).
+const OPERADORAS_VE = ['0412', '0414', '0416', '0422', '0424', '0426'];
+
+// numero = SOLO los dígitos (el prefijo V/E va en un campo aparte).
+// estricto=false mientras se escribe: no se reclama "faltan dígitos" hasta salir del campo o enviar.
+function validarCedulaNumero(numero, estricto = true) {
+    if (!numero) return estricto ? 'Ingrese el número de cédula' : null;
+    if (!/^\d+$/.test(numero)) return 'La cédula solo debe contener números (sin puntos, espacios ni letras)';
+    if (numero.length > 8) return `La cédula debe tener máximo 8 dígitos (ingresó ${numero.length})`;
+    if (numero.length < 7 && estricto) return `La cédula debe tener mínimo 7 dígitos (ingresó ${numero.length})`;
+    return null;
+}
+function validarTelefonoVE(v, estricto = true) {
+    if (!v) return estricto ? 'Ingrese el número de teléfono' : null;
+    if (!/^\d+$/.test(v)) return 'El teléfono solo debe contener números (sin espacios, guiones, signos ni letras)';
+    if (v.length > 11) return `El teléfono debe tener exactamente 11 dígitos (ingresó ${v.length})`;
+    if (v.length >= 4 && !OPERADORAS_VE.includes(v.slice(0, 4))) return 'El teléfono debe comenzar con 0412, 0414, 0416, 0422, 0424 o 0426';
+    if (v.length < 11 && estricto) return `El teléfono debe tener exactamente 11 dígitos (ingresó ${v.length})`;
+    return null;
+}
+// Muestra u oculta el error de un campo (borde rojo + mensaje bajo el campo)
+function marcarCampo(el, mensaje) {
+    el.classList.toggle('input-invalida', !!mensaje);
+    el.setAttribute('aria-invalid', mensaje ? 'true' : 'false');
+    const grupo = el.closest('.form-group') || el.parentElement;
+    let hint = grupo.querySelector('.field-hint');
+    if (!hint) { hint = document.createElement('p'); hint.className = 'field-hint'; hint.setAttribute('role', 'alert'); grupo.appendChild(hint); }
+    hint.textContent = mensaje || '';
+}
+// Manejador de los campos numéricos (data-validar="cedula" | "telefono"): descarta todo lo que
+// no sea dígito, y valida en vivo. Con estricto=true (al salir del campo) exige la longitud completa.
+function campoNumerico(el, estricto = false) {
+    const limpio = el.value.replace(/\D/g, '');
+    const descartados = limpio !== el.value;
+    if (descartados) el.value = limpio;
+    const msg = el.dataset.validar === 'cedula' ? validarCedulaNumero(limpio, estricto) : validarTelefonoVE(limpio, estricto);
+    marcarCampo(el, msg || (descartados ? 'Solo se permiten números' : ''));
+    const completo = el.dataset.validar === 'cedula' ? validarCedulaNumero(limpio, true) : validarTelefonoVE(limpio, true);
+    el.classList.toggle('input-valida', !completo && !descartados);   // borde verde solo si ya cumple TODAS las reglas
+}
+// Validación completa al enviar: devuelve true si es válido; si no, avisa y enfoca el campo.
+function validarCedulaCampo(idBase) {
+    const el = document.getElementById(`${idBase}-numero`);
+    const msg = validarCedulaNumero((el.value || '').trim(), true);
+    marcarCampo(el, msg);
+    if (msg) { showToast(msg, 'error'); el.focus(); }
+    return !msg;
+}
+function validarTelefonoCampo(id) {
+    const el = document.getElementById(id);
+    const msg = validarTelefonoVE(el.value || '', true);
+    marcarCampo(el, msg);
+    if (msg) { showToast(msg, 'error'); el.focus(); }
+    return !msg;
+}
+// Campo de teléfono: solo números, 11 dígitos, operadora válida
+function telefonoInputHTML(id, valorActual) {
+    const digitos = String(valorActual || '').replace(/\D/g, '');
+    return `<input type="text" id="${id}" class="form-control" data-validar="telefono" inputmode="numeric"
+               autocomplete="tel" maxlength="12" placeholder="04121234567" value="${digitos}"
+               oninput="campoNumerico(this)" onblur="campoNumerico(this, true)">`;
+}
+
 // Genera el HTML de un campo de cédula compuesto: un select fijo con V-/E- y un
 // input que solo acepta dígitos, para que el usuario nunca tenga que escribir el guion.
 function cedulaInputHTML(idBase, valorActual) {
@@ -261,8 +326,8 @@ function cedulaInputHTML(idBase, valorActual) {
             <option value="E"${prefijo==='E'?' selected':''}>E-</option>
         </select>
         <input type="text" id="${idBase}-numero" class="form-control cedula-numero" placeholder="12345678"
-               inputmode="numeric" maxlength="9" value="${numero}"
-               oninput="this.value=this.value.replace(/\\D/g,'').slice(0,9)">
+               data-validar="cedula" inputmode="numeric" maxlength="10" value="${numero}"
+               oninput="campoNumerico(this)" onblur="campoNumerico(this, true)">
     </div>`;
 }
 // Arma el valor completo "V-12345678" a partir del select + input numérico
@@ -288,9 +353,9 @@ async function iniciarSesion() {
     else showToast(r.msg, 'error');
 }
 async function recuperarContrasena() {
+    if (!validarCedulaCampo('rec-cedula')) return;
     const cedula = leerCedula('rec-cedula');
     const correo = document.getElementById('rec-email').value;
-    if (!cedula) return showToast('Ingrese el número de cédula', 'error');
     const r = await api('POST', '/auth/recuperar', { cedula, correo });
     if (r.ok) { document.getElementById('success-text').textContent = r.msg; showPanel('panel-success'); }
     else showToast(r.msg, 'error');
@@ -725,26 +790,35 @@ async function renderInventario() {
     const opEq=equipos.map(e=>`<option value="${e.id_equipos}">${e.nombre} — ${e.modelo_nombre||''}</option>`).join('');
     const opUb=ubicaciones.map(u=>`<option value="${u.id_ubicacion_fisica}">${u.nombre}</option>`).join('');
     const opEst='<option>Operativo</option><option>En Reparacion</option><option>No operativo</option><option>Dañado</option>';
+    const activos=inventario.filter(i=>i.estado!=='Desincorporado');
     const totalOp=inventario.filter(i=>i.estado==='Operativo').length;
     const totalRep=inventario.filter(i=>i.estado==='En Reparacion').length;
+    const totalDes=inventario.length-activos.length;
+    const esAdmin=usuarioActual?.roles==='Administrador';
     const filas=inventario.map(i=>{
-        const cls=i.estado==='Operativo'?'success':i.estado==='En Reparacion'?'warning':'danger';
-        return `<tr>
-            <td><div class="cell-stack"><code class="cell-code">${i.serial}</code><span class="cell-subtitle">#${i.id_inventario}</span></div></td>
+        const desinc=i.estado==='Desincorporado';
+        const cls=desinc?'muted':i.estado==='Operativo'?'success':i.estado==='En Reparacion'?'warning':'danger';
+        const codigo=i.codigo_bien_nacional?`<code class="cell-code">${escHtml(i.codigo_bien_nacional)}</code>`:'<span class="cell-subtitle" title="Edite el equipo para asignarle su código">Sin código</span>';
+        const fechaDes=i.fecha_desincorporacion?new Date(i.fecha_desincorporacion).toLocaleDateString('es-ES'):'';
+        const estadoCelda=`<span class="status-badge ${cls}">${i.estado}</span>`+(desinc?`<div class="cell-subtitle" style="margin-top:.25rem" title="${escHtml(i.motivo_desincorporacion||'')}">${fechaDes}${i.motivo_desincorporacion?' — '+escHtml(i.motivo_desincorporacion):''}</div>`:'');
+        const acciones=desinc?'<span class="cell-subtitle">—</span>':`<div class="table-actions">
+                <button class="btn-icon-small" title="Editar" onclick='editarInventario(${escHtml(JSON.stringify(i))})'><i class="fas fa-edit"></i></button>
+                ${esAdmin?`<button class="btn-icon-small" title="Desincorporar" style="color:#f59e0b" onclick="desincorporarInventario(${i.id_inventario})"><i class="fas fa-box-archive"></i></button>`:''}
+            </div>`;
+        return `<tr${desinc?' style="opacity:.65"':''}>
+            <td><div class="cell-stack">${codigo}<span class="cell-subtitle">Serial: ${escHtml(i.serial)}</span></div></td>
             <td><div class="cell-stack"><span class="cell-title">${i.equipo_nombre||'N/A'}</span><span class="cell-subtitle">${i.modelo_nombre||'—'}</span></div></td>
             <td>${(i.ubicacion_nombre||'N/A').split(' - ').pop()}</td>
-            <td><span class="status-badge ${cls}">${i.estado}</span></td>
-            <td><div class="table-actions">
-                <button class="btn-icon-small" onclick='editarInventario(${JSON.stringify(i)})'><i class="fas fa-edit"></i></button>
-                <button class="btn-icon-small" onclick="eliminarInventario(${i.id_inventario})"><i class="fas fa-trash"></i></button>
-            </div></td></tr>`;}).join('');
+            <td>${estadoCelda}</td>
+            <td>${acciones}</td></tr>`;}).join('');
     document.getElementById('views-container').innerHTML=`
         <div id="view-inventario" class="view-section active">
             <div class="section-header"><h1 class="page-title">Inventario — ${ubicacionPrincipal}</h1></div>
             <div class="section-metrics">
-                <div class="metric-chip"><span class="metric-label">Total</span><strong>${inventario.length}</strong></div>
+                <div class="metric-chip"><span class="metric-label">Total</span><strong>${activos.length}</strong></div>
                 <div class="metric-chip"><span class="metric-label">Operativos</span><strong>${totalOp}</strong></div>
                 <div class="metric-chip warning"><span class="metric-label">En reparación</span><strong>${totalRep}</strong></div>
+                <div class="metric-chip"><span class="metric-label">Desincorporados</span><strong>${totalDes}</strong></div>
             </div>
             <div class="glass-panel">
                 <div class="panel-toolbar"><div class="table-section-intro"><h3>Equipos Físicos</h3></div>
@@ -752,18 +826,21 @@ async function renderInventario() {
                 <div id="form-inventario" style="display:none;margin-bottom:1.5rem;padding:1rem;background:var(--glass-bg);border-radius:var(--radius-md);">
                     <h4 id="form-inv-titulo">Agregar al Inventario</h4>
                     <div class="form-row">
+                        <div class="form-group"><label>Código de Bienes Nacionales</label><input type="text" id="inv-codigo" class="form-control" maxlength="30" placeholder="Ej: 0012345"></div>
+                        <div class="form-group"><label>Serial</label><input type="text" id="inv-serial" class="form-control" placeholder="Ej: SN-001"></div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group"><label>Equipo</label><select id="inv-equipo" class="form-control">${opEq}</select></div>
                         <div class="form-group"><label>Ubicación</label><select id="inv-ubicacion" class="form-control">${opUb}</select></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>Serial</label><input type="text" id="inv-serial" class="form-control" placeholder="Ej: SN-001"></div>
                         <div class="form-group"><label>Estado</label><select id="inv-estado" class="form-control">${opEst}</select></div>
                     </div>
                     <div class="form-actions"><button class="btn btn-primary" onclick="guardarInventario()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-inventario')">Cancelar</button></div>
                 </div>
-                ${barraBusqueda('Buscar por serial, equipo o estado...',[{idx:0,label:'Serial'},{idx:1,label:'Equipo'},{idx:2,label:'Ubicación'},{idx:3,label:'Estado'}])}
+                ${barraBusqueda('Buscar por código de Bienes Nacionales, serial, equipo o estado...',[{idx:0,label:'Código / Serial'},{idx:1,label:'Equipo'},{idx:2,label:'Ubicación'},{idx:3,label:'Estado'}])}
                 <div class="table-responsive table-enhanced"><table class="premium-table premium-table-detailed">
-                    <thead><tr><th>Serial</th><th>Equipo</th><th>Ubicación</th><th>Estado</th><th>Acciones</th></tr></thead>
+                    <thead><tr><th>Cód. Bienes Nacionales</th><th>Equipo</th><th>Ubicación</th><th>Estado</th><th>Acciones</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table></div>
             </div>
@@ -774,6 +851,7 @@ function editarInventario(i) {
     document.getElementById('form-inv-titulo').textContent='Editar Registro de Inventario';
     document.getElementById('inv-equipo').value=i.id_equipos;
     document.getElementById('inv-ubicacion').value=i.id_ubicacion_fisica;
+    document.getElementById('inv-codigo').value=i.codigo_bien_nacional||'';
     document.getElementById('inv-serial').value=i.serial;
     document.getElementById('inv-estado').value=i.estado;
     form.scrollIntoView({behavior:'smooth'});
@@ -782,17 +860,21 @@ function mostrarFormularioInventario() {
     const form=document.getElementById('form-inventario'); form.style.display='block'; form.dataset.editId='';
     document.getElementById('form-inv-titulo').textContent='Agregar al Inventario';
     document.getElementById('inv-serial').value='';
+    document.getElementById('inv-codigo').value='';
 }
 async function guardarInventario() {
-    const id_equipos=document.getElementById('inv-equipo')?.value,id_ubicacion_fisica=document.getElementById('inv-ubicacion')?.value,serial=val('inv-serial'),estado=document.getElementById('inv-estado')?.value;
-    if(!id_equipos||!id_ubicacion_fisica||!serial||!estado)return showToast('Complete todos los campos','error');
+    const id_equipos=document.getElementById('inv-equipo')?.value,id_ubicacion_fisica=document.getElementById('inv-ubicacion')?.value,serial=val('inv-serial'),codigo_bien_nacional=val('inv-codigo'),estado=document.getElementById('inv-estado')?.value;
+    if(!codigo_bien_nacional||!id_equipos||!id_ubicacion_fisica||!serial||!estado)return showToast('Complete todos los campos, incluido el código de Bienes Nacionales','error');
     const editId=document.getElementById('form-inventario').dataset.editId;
-    const r=editId?await api('PUT',`/inventario/${editId}`,{id_equipos,id_ubicacion_fisica,serial,estado}):await api('POST','/inventario',{id_equipos,id_ubicacion_fisica,serial,estado});
+    const r=editId?await api('PUT',`/inventario/${editId}`,{codigo_bien_nacional,id_equipos,id_ubicacion_fisica,serial,estado}):await api('POST','/inventario',{codigo_bien_nacional,id_equipos,id_ubicacion_fisica,serial,estado});
     if(r.ok){showToast(r.msg,'success');renderInventario();}else showToast(r.msg,'error');
 }
-async function eliminarInventario(id) {
-    if(!confirm('¿Eliminar este registro?'))return;
-    const r=await api('DELETE',`/inventario/${id}`);
+// Desincorporación: retira el equipo del inventario activo conservando su registro, fecha y motivo
+async function desincorporarInventario(id) {
+    const motivo=prompt('DESINCORPORACIÓN DE EQUIPO\n\nEl equipo dejará de estar disponible y no podrá modificarse.\nIndique el motivo de la desincorporación:');
+    if(motivo===null)return;
+    if(motivo.trim().length<5)return showToast('Indique el motivo de la desincorporación (mínimo 5 caracteres)','error');
+    const r=await api('PUT',`/inventario/${id}/desincorporar`,{motivo:motivo.trim()});
     if(r.ok){showToast(r.msg,'success');renderInventario();}else showToast(r.msg,'error');
 }
 
@@ -973,7 +1055,7 @@ async function buscarEquiposDisponibles() {
             <input type="checkbox" name="eq-sel" value="${e.id_inventario}" style="margin-top:2px;flex-shrink:0">
             <div>
                 <div style="font-weight:600">${e.equipo_nombre} <span style="opacity:.6;font-weight:400">${e.modelo_nombre||''}</span></div>
-                <div style="opacity:.55">Serial: ${e.serial} | ${e.categoria||''} ${e.marca?'— '+e.marca:''}</div>
+                <div style="opacity:.55">${e.codigo_bien_nacional?'Cód. B.N.: '+escHtml(e.codigo_bien_nacional)+' | ':''}Serial: ${escHtml(e.serial)} | ${e.categoria||''} ${e.marca?'— '+e.marca:''}</div>
                 <div style="opacity:.4">${(e.ubicacion||'').split(' - ').pop()}</div>
             </div>
         </label>`).join('');
@@ -1154,7 +1236,7 @@ async function renderAsistencias() {
                         </div>
                         <div class="form-row">
                             <div class="form-group"><label>Cédula *</label>${cedulaInputHTML('est-cedula')}</div>
-                            <div class="form-group"><label>Teléfono</label><input type="text" id="est-telefono" class="form-control" placeholder="0412-1234567"></div>
+                            <div class="form-group"><label>Teléfono *</label>${telefonoInputHTML('est-telefono')}</div>
                         </div>
                     </div>
                     <div class="form-row">
@@ -1225,8 +1307,9 @@ async function guardarEstudiante() {
     const nombre   = val('est-nombre');
     const apellido = val('est-apellido');
     const cedula   = leerCedula('est-cedula');
-    const telefono = val('est-telefono');
-    if (!nombre||!apellido||!cedula||!año) return showToast('Complete los campos requeridos','error');
+    const telefono = document.getElementById('est-telefono').value;
+    if (!nombre||!apellido||!año) return showToast('Complete los campos requeridos','error');
+    if (!validarCedulaCampo('est-cedula') || !validarTelefonoCampo('est-telefono')) return;   // bloquea el envío
     const r = await api('POST','/asistencias/registrar-estudiante',{nombre,apellido,cedula,telefono,año,seccion});
     if (r.ok) { showToast(r.msg,'success'); renderAsistencias(); } else showToast(r.msg,'error');
 }
@@ -1432,8 +1515,8 @@ async function renderPersonas() {
                         <div class="form-group"><label>Apellido</label><input type="text" id="per-apellido" class="form-control"></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>Cédula</label>${cedulaInputHTML('per-cedula')}</div>
-                        <div class="form-group"><label>Teléfono</label><input type="text" id="per-telefono" class="form-control" placeholder="0412-1234567"></div>
+                        <div class="form-group"><label>Cédula *</label>${cedulaInputHTML('per-cedula')}</div>
+                        <div class="form-group"><label>Teléfono *</label>${telefonoInputHTML('per-telefono')}</div>
                     </div>
                     <div class="form-actions"><button class="btn btn-primary" onclick="guardarPersona()"><i class="fas fa-save"></i> Guardar</button><button class="btn btn-outline" onclick="ocultarFormulario('form-persona')">Cancelar</button></div>
                 </div>
@@ -1451,7 +1534,10 @@ function editarPersona(p) {
     document.getElementById('per-nombre').value=p.nombre;
     document.getElementById('per-apellido').value=p.apellido;
     escribirCedula('per-cedula', p.cedula);
-    document.getElementById('per-telefono').value=p.telefono;
+    document.getElementById('per-telefono').value=String(p.telefono||'').replace(/\D/g,'');
+    // los datos antiguos que no cumplan las reglas se señalan para corregirlos
+    campoNumerico(document.getElementById('per-cedula-numero'), true);
+    campoNumerico(document.getElementById('per-telefono'), true);
     form.scrollIntoView({behavior:'smooth'});
 }
 function mostrarFormularioPersona() {
@@ -1459,10 +1545,12 @@ function mostrarFormularioPersona() {
     document.getElementById('form-per-titulo').textContent='Registrar Nueva Persona';
     ['per-nombre','per-apellido','per-telefono'].forEach(id=>document.getElementById(id).value='');
     escribirCedula('per-cedula', '');
+    ['per-cedula-numero','per-telefono'].forEach(id=>{ const el=document.getElementById(id); marcarCampo(el,''); el.classList.remove('input-valida'); });
 }
 async function guardarPersona() {
-    const nombre=val('per-nombre'),apellido=val('per-apellido'),cedula=leerCedula('per-cedula'),telefono=val('per-telefono');
+    const nombre=val('per-nombre'),apellido=val('per-apellido'),cedula=leerCedula('per-cedula'),telefono=document.getElementById('per-telefono').value;
     if(!nombre||!apellido||!cedula||!telefono)return showToast('Complete todos los campos','error');
+    if(!validarCedulaCampo('per-cedula')||!validarTelefonoCampo('per-telefono'))return;   // bloquea el envío
     const editId=document.getElementById('form-persona').dataset.editId;
     const r=editId?await api('PUT',`/personas/${editId}`,{nombre,apellido,cedula,telefono}):await api('POST','/personas',{nombre,apellido,cedula,telefono});
     if(r.ok){showToast(r.msg,'success');renderPersonas();}else showToast(r.msg,'error');
@@ -1569,17 +1657,17 @@ async function renderDisponibilidadEquipos() {
     setContainer(loadingPanel('Disponibilidad de Equipos','view-disponibilidad-equipos'));
     const r=await api('GET','/reportes/disponibilidad'); if(!r.ok)return;
     const filas=r.inventario.map(i=>`<tr>
-        <td><code>${i.serial}</code></td>
+        <td><div class="cell-stack"><code class="cell-code">${i.codigo_bien_nacional?escHtml(i.codigo_bien_nacional):'Sin código'}</code><span class="cell-subtitle">Serial: ${escHtml(i.serial)}</span></div></td>
         <td>${i.equipo_nombre||'N/A'} ${i.modelo_nombre?`<small style="opacity:.6">${i.modelo_nombre}</small>`:''}</td>
         <td>${i.ubicacion_nombre||'N/A'}</td>
-        <td><span class="status-badge ${i.estado==='Operativo'?'success':i.estado==='En Reparacion'?'warning':'danger'}">${i.estado}</span></td>
+        <td><span class="status-badge ${i.estado==='Desincorporado'?'muted':i.estado==='Operativo'?'success':i.estado==='En Reparacion'?'warning':'danger'}">${i.estado}</span></td>
         <td><span class="status-badge ${i.estado==='Operativo'?'success':'warning'}">${i.estado==='Operativo'?'Disponible':'No disponible'}</span></td>
     </tr>`).join('');
     document.getElementById('views-container').innerHTML=`
         <div id="view-disponibilidad-equipos" class="view-section active">
             <div class="section-header"><h1 class="page-title">Disponibilidad de Equipos — ${ubicacionPrincipal}</h1></div>
             <div class="glass-panel"><div class="table-responsive"><table class="premium-table">
-                <thead><tr><th>Serial</th><th>Equipo</th><th>Ubicación</th><th>Estado</th><th>Disponibilidad</th></tr></thead>
+                <thead><tr><th>Cód. Bienes Nacionales</th><th>Equipo</th><th>Ubicación</th><th>Estado</th><th>Disponibilidad</th></tr></thead>
                 <tbody>${filas}</tbody>
             </table></div></div>
         </div>`;
@@ -1651,409 +1739,7 @@ async function eliminarEspacio(id) {
 
 
 // ==================== REPORTES ====================
-let _reporteActual = { titulo: '', columnas: [], filas: [] };
-let _datosReporte  = null;
-
-// Tabs config
-const TABS_REPORTE = [
-    { key:'resumen',           label:'Resumen',              icon:'fas fa-chart-pie',      admin:false },
-    { key:'usuarios',          label:'Usuarios',             icon:'fas fa-users',           admin:true  },
-    { key:'equipos',           label:'Equipos Tecnológicos', icon:'fas fa-laptop',          admin:false },
-    { key:'disponibilidad',    label:'Disponibilidad',       icon:'fas fa-microchip',       admin:false },
-    { key:'reservas-equipos',  label:'Reservas Equipos',     icon:'fas fa-hdd',             admin:false },
-    { key:'reservas-espacios', label:'Reservas Espacio',     icon:'fas fa-door-open',       admin:false },
-    { key:'actividades',       label:'Actividades',          icon:'fas fa-chalkboard',      admin:false },
-    { key:'fallas',            label:'Fallas Técnicas',      icon:'fas fa-exclamation-triangle', admin:false },
-    { key:'mantenimiento',     label:'Mantenimiento',        icon:'fas fa-tools',           admin:false },
-    { key:'asistencia',        label:'Asistencia',           icon:'fas fa-clipboard-user',  admin:false },
-    { key:'maquinas-usadas',   label:'Máquinas más usadas',  icon:'fas fa-fire',            admin:false },
-];
-
-function tabsHTML(activo) {
-    const esAdmin = usuarioActual?.roles === 'Administrador';
-    return `<div id="tabs-reporte" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.75rem;border-bottom:1px solid var(--glass-border)">
-        ${TABS_REPORTE.filter(t => !t.admin || esAdmin).map(t => `
-        <button class="reporte-tab${t.key===activo?' active':''}" data-tab="${t.key}"
-            onclick="cargarTabReporte('${t.key}')"
-            style="background:${t.key===activo?'var(--primary,#4F46E5)':'var(--bg-main)'};
-                   color:${t.key===activo?'#fff':'var(--text-primary)'};border:1px solid var(--glass-border);padding:.4rem .85rem;
-                   border-radius:8px;cursor:pointer;font-size:.8rem;display:flex;
-                   align-items:center;gap:.35rem;white-space:nowrap;transition:background .2s,color .2s">
-            <i class="${t.icon}"></i>${t.label}
-        </button>`).join('')}
-    </div>`;
-}
-
-function botonExportar() {
-    return `<div style="display:flex;gap:.5rem;align-items:center">
-        <span style="font-size:.78rem;opacity:.5">Exportar:</span>
-        <button class="btn btn-outline" style="padding:.35rem .8rem;font-size:.8rem" onclick="exportarExcel()">
-            <i class="fas fa-file-excel" style="color:#21a366;margin-right:.3rem"></i>Excel</button>
-        <button class="btn btn-outline" style="padding:.35rem .8rem;font-size:.8rem" onclick="exportarPDF()">
-            <i class="fas fa-file-pdf" style="color:#e53e3e;margin-right:.3rem"></i>PDF</button>
-    </div>`;
-}
-
-function kpi(label, valor, icon, color) {
-    return `<div class="stat-card glass-panel" style="flex:1;min-width:130px">
-        <div class="stat-icon ${color}"><i class="${icon}"></i></div>
-        <div class="stat-info"><h3 style="font-size:.78rem">${label}</h3><h2>${valor}</h2></div>
-    </div>`;
-}
-
-function barraH(items, max, color) {
-    if (!items?.length) return '<p style="opacity:.4;text-align:center;padding:1rem">Sin datos</p>';
-    return items.map(item => `
-        <div style="margin-bottom:.8rem">
-            <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
-                <span style="font-size:.84rem">${item.nombre}</span>
-                <strong style="font-size:.84rem">${item.total}</strong>
-            </div>
-            <div style="background:rgba(255,255,255,.08);border-radius:99px;height:8px">
-                <div style="width:${Math.round((item.total/max)*100)}%;background:${color};border-radius:99px;height:8px;transition:width .6s"></div>
-            </div>
-        </div>`).join('');
-}
-
-function tablaHTML(columnas, filas) {
-    if (!filas?.length) return '<p style="opacity:.4;text-align:center;padding:1.5rem">Sin registros</p>';
-    return `<div class="table-responsive" style="max-height:440px;overflow-y:auto;margin-top:.75rem">
-        <table class="premium-table" style="font-size:.82rem">
-            <thead><tr>${columnas.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-            <tbody>${filas.map(f=>`<tr>${f.map(c=>`<td>${c??'—'}</td>`).join('')}</tr>`).join('')}</tbody>
-        </table>
-    </div>`;
-}
-
-async function renderReportes() {
-    setContainer(loadingPanel('Reportes e Informes','view-reportes'));
-    // Cargar tab inicial: resumen
-    const r = await api('GET','/reportes/resumen');
-    if (!r.ok) return;
-    _datosReporte = r;
-    _construirVistaReportes('resumen');
-    _renderTabResumen(r);
-}
-
-function _construirVistaReportes(tabActivo) {
-    document.getElementById('views-container').innerHTML = `
-        <div id="view-reportes" class="view-section active">
-            <div class="section-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
-                <div><h1 class="page-title">Reportes e Informes</h1><p class="page-subtitle">CBIT Francisco de Miranda — ${new Date().toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>
-                <div id="btn-export-wrap">${botonExportar()}</div>
-            </div>
-            <div class="glass-panel">
-                ${tabsHTML(tabActivo)}
-                <div id="reporte-contenido"><div style="text-align:center;padding:2rem;opacity:.4"><i class="fas fa-spinner fa-spin fa-2x"></i></div></div>
-            </div>
-        </div>`;
-}
-
-async function cargarTabReporte(tab) {
-    // Actualizar estilo de tabs
-    document.querySelectorAll('.reporte-tab').forEach(t => {
-        const isActive = t.dataset.tab === tab;
-        t.classList.toggle('active', isActive);
-        t.style.background = isActive ? 'var(--primary,#4F46E5)' : 'var(--bg-main)';
-        t.style.color = isActive ? '#fff' : 'var(--text-primary)';
-    });
-    const cont = document.getElementById('reporte-contenido');
-    cont.innerHTML = '<div style="text-align:center;padding:2rem;opacity:.4"><i class="fas fa-spinner fa-spin fa-2x"></i> Cargando...</div>';
-
-    const r = await api('GET', `/reportes/${tab}`);
-    if (!r.ok) { cont.innerHTML = `<p style="color:#f87171;padding:1rem">${r.msg}</p>`; return; }
-
-    const fecha = new Date().toLocaleDateString('es-ES');
-    switch(tab) {
-        case 'resumen':            _renderTabResumen(r); break;
-        case 'usuarios':           _renderTabUsuarios(r, fecha); break;
-        case 'equipos':            _renderTabEquipos(r, fecha); break;
-        case 'disponibilidad':     _renderTabDisponibilidad(r, fecha); break;
-        case 'reservas-equipos':   _renderTabReservasEquipos(r, fecha); break;
-        case 'reservas-espacios':  _renderTabReservasEspacios(r, fecha); break;
-        case 'actividades':        _renderTabActividades(r, fecha); break;
-        case 'fallas':             _renderTabFallas(r, fecha); break;
-        case 'mantenimiento':      _renderTabMantenimiento(r, fecha); break;
-        case 'asistencia':         _renderTabAsistencia(r, fecha); break;
-        case 'maquinas-usadas':    _renderTabMaquinas(r, fecha); break;
-    }
-}
-
-function _renderTabResumen(r) {
-    const {inv_stats:i, sol_stats:s, man_stats:m, top_espacios, top_actividades} = r;
-    const maxE = Math.max(...(top_espacios||[{total:1}]).map(e=>e.total), 1);
-    const maxA = Math.max(...(top_actividades||[{total:1}]).map(a=>a.total), 1);
-    document.getElementById('reporte-contenido').innerHTML = `
-        <h4 style="margin-bottom:.75rem;opacity:.7">Inventario de Equipos</h4>
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1.5rem">
-            ${kpi('Total',i.total,'fas fa-layer-group','purple')}
-            ${kpi('Operativos',i.operativo,'fas fa-check-circle','green')}
-            ${kpi('En Reparación',i.en_reparacion,'fas fa-tools','orange')}
-            ${kpi('No Operativo',i.no_operativo,'fas fa-ban','blue')}
-            ${kpi('Dañados',i.daniado,'fas fa-exclamation-triangle','orange')}
-        </div>
-        <h4 style="margin-bottom:.75rem;opacity:.7">Solicitudes y Reservas</h4>
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1.5rem">
-            ${kpi('Total',s.total,'fas fa-list','purple')}
-            ${kpi('Aprobadas',s.aprobadas,'fas fa-calendar-check','green')}
-            ${kpi('Pendientes',s.pendientes,'fas fa-clock','orange')}
-            ${kpi('Completadas',s.completadas,'fas fa-check-double','blue')}
-            ${kpi('Canceladas',s.canceladas,'fas fa-times-circle','orange')}
-        </div>
-        <h4 style="margin-bottom:.75rem;opacity:.7">Mantenimiento</h4>
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1.5rem">
-            ${kpi('Total',m.total,'fas fa-clipboard-list','purple')}
-            ${kpi('Alta Prioridad',m.alta,'fas fa-fire','orange')}
-            ${kpi('Media Prioridad',m.media,'fas fa-minus-circle','blue')}
-            ${kpi('Baja Prioridad',m.baja,'fas fa-arrow-down','green')}
-        </div>
-        <div class="dashboard-content-grid">
-            <div><h4 style="margin-bottom:.75rem;opacity:.7"><i class="fas fa-door-open" style="margin-right:.3rem"></i>Espacios más solicitados</h4>
-            ${barraH(top_espacios, maxE, 'linear-gradient(90deg,#4F46E5,#7C3AED)')}</div>
-            <div><h4 style="margin-bottom:.75rem;opacity:.7"><i class="fas fa-chalkboard" style="margin-right:.3rem"></i>Actividades más frecuentes</h4>
-            ${barraH(top_actividades, maxA, 'linear-gradient(90deg,#EC4899,#F59E0B)')}</div>
-        </div>`;
-    _reporteActual = {
-        titulo: `Resumen General CBIT — ${new Date().toLocaleDateString('es-ES')}`,
-        columnas: ['Módulo','Indicador','Valor'],
-        filas: [
-            ...['total','operativo','en_reparacion','no_operativo','daniado'].map(k=>['Inventario',k,i[k]]),
-            ...['total','aprobadas','pendientes','completadas','canceladas'].map(k=>['Solicitudes',k,s[k]]),
-            ...['total','alta','media','baja'].map(k=>['Mantenimiento',k,m[k]]),
-            ...(top_espacios||[]).map(e=>['Top Espacios',e.nombre,e.total]),
-            ...(top_actividades||[]).map(a=>['Top Actividades',a.nombre,a.total]),
-        ]
-    };
-}
-
-function _renderTabUsuarios(r, fecha) {
-    const cols = ['ID','Usuario','Nombre','Apellido','Cédula','Correo','Rol','Estado','Solicitudes'];
-    const filas = (r.usuarios||[]).map(u=>[u.id_usuario,u.nombre_usuario,u.nombre||'—',u.apellido||'—',u.cedula||'—',u.correo,u.roles,u.estado,u.total_solicitudes]);
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total usuarios', r.usuarios.length,'fas fa-users','purple')}
-            ${kpi('Activos', r.usuarios.filter(u=>u.estado==='Activo').length,'fas fa-user-check','green')}
-            ${kpi('Inactivos', r.usuarios.filter(u=>u.estado!=='Activo').length,'fas fa-user-slash','orange')}
-            ${kpi('Administradores', r.usuarios.filter(u=>u.roles==='Administrador').length,'fas fa-user-shield','blue')}
-            ${kpi('Docentes', r.usuarios.filter(u=>u.roles==='Docente').length,'fas fa-chalkboard-teacher','green')}
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte General de Usuarios — ${fecha}`, columnas:cols, filas };
-}
-
-function _renderTabEquipos(r, fecha) {
-    const cols = ['Serial','Equipo','Categoría','Marca','Modelo','Ubicación','Estado'];
-    const filas = (r.equipos||[]).map(e=>[e.serial,e.equipo_nombre,e.categoria||'—',e.marca||'—',e.modelo||'—',(e.ubicacion||'N/A').split(' - ').pop(),e.estado]);
-    const porEstado = {};
-    (r.equipos||[]).forEach(e=>{ porEstado[e.estado]=(porEstado[e.estado]||0)+1; });
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total',r.equipos.length,'fas fa-laptop','purple')}
-            ${Object.entries(porEstado).map(([est,n])=>kpi(est,n,'fas fa-circle',est==='Operativo'?'green':est==='En Reparacion'?'orange':'blue')).join('')}
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Equipos Tecnológicos — ${fecha}`, columnas:cols, filas };
-}
-
-function _renderTabDisponibilidad(r, fecha) {
-    const cols = ['Serial','Equipo','Modelo','Ubicación','Estado','Disponibilidad'];
-    const filas = (r.inventario||[]).map(i=>[i.serial,i.equipo_nombre||'N/A',i.modelo_nombre||'—',(i.ubicacion_nombre||'N/A').split(' - ').pop(),i.estado,i.estado==='Operativo'?'Disponible':'No disponible']);
-    const disp = (r.inventario||[]).filter(i=>i.estado==='Operativo').length;
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total',r.inventario.length,'fas fa-boxes','purple')}
-            ${kpi('Disponibles',disp,'fas fa-check-circle','green')}
-            ${kpi('No disponibles',r.inventario.length-disp,'fas fa-times-circle','orange')}
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Disponibilidad de Equipos — ${fecha}`, columnas:cols, filas };
-}
-
-function _renderTabReservasEquipos(r, fecha) {
-    const cols = ['Serial','Equipo','Modelo','Docente','Actividad','Fecha','Hora Inicio','Hora Fin','Estado'];
-    const filas = (r.reservas||[]).map(x=>[x.serial,x.equipo_nombre||'N/A',x.modelo_nombre||'—',`${x.docente_nombre||''} ${x.docente_apellido||''}`.trim()||'—',x.actividad_nombre||'N/A',new Date(x.fecha).toLocaleDateString('es-ES'),String(x.hora_inicio).slice(0,5),String(x.hora_fin).slice(0,5),x.estado]);
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total reservas equipos',r.reservas.length,'fas fa-hdd','purple')}
-            ${kpi('Aprobadas',r.reservas.filter(x=>x.estado==='Aprobado').length,'fas fa-check','green')}
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Reservas de Equipos — ${fecha}`, columnas:cols, filas };
-}
-
-function _renderTabReservasEspacios(r, fecha) {
-    const cols = ['ID','Docente','Espacio','Actividad','Fecha','Hora Inicio','Hora Fin','Estado','Descripción'];
-    const filas = (r.reservas||[]).map(s=>[s.id_solicitud,`${s.docente_nombre||''} ${s.docente_apellido||''}`.trim()||'—',s.espacio||'N/A',s.actividad||'N/A',new Date(s.fecha).toLocaleDateString('es-ES'),String(s.hora_inicio).slice(0,5),String(s.hora_fin).slice(0,5),s.estado,s.descripcion||'—']);
-    const stats = {aprobadas:(r.reservas||[]).filter(s=>s.estado==='Aprobado').length, pendientes:(r.reservas||[]).filter(s=>s.estado==='Pendiente').length};
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total solicitudes',r.reservas.length,'fas fa-door-open','purple')}
-            ${kpi('Aprobadas',stats.aprobadas,'fas fa-check-circle','green')}
-            ${kpi('Pendientes',stats.pendientes,'fas fa-clock','orange')}
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Reservas de Espacio — ${fecha}`, columnas:cols, filas };
-}
-
-function _renderTabActividades(r, fecha) {
-    const cols = ['ID','Actividad','Descripción','Total Solicitudes','Aprobadas','Completadas','Última Fecha'];
-    const filas = (r.actividades||[]).map(a=>[a.id_actividad,a.nombre,a.descripcion_actividad||'—',a.total_solicitudes||0,a.aprobadas||0,a.completadas||0,a.ultima_fecha?new Date(a.ultima_fecha).toLocaleDateString('es-ES'):'—']);
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total actividades',r.actividades.length,'fas fa-chalkboard','purple')}
-            ${kpi('Con solicitudes',r.actividades.filter(a=>a.total_solicitudes>0).length,'fas fa-file-alt','green')}
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Actividades Educativas — ${fecha}`, columnas:cols, filas };
-}
-
-function _renderTabFallas(r, fecha) {
-    const cols = ['ID','Equipo','Categoría','Serial','Descripción Falla','Prioridad','Técnico','Especialidad','Fecha Reporte'];
-    const filas = (r.fallas||[]).map(f=>[
-        `MAN-${String(f.id_mantenimiento).padStart(2,'0')}`,
-        f.equipo_nombre||'N/A', f.categoria||'—', f.serial||'—',
-        f.descripcion_fallas||'—', f.nivel_prioridad,
-        `${f.tec_nombre||''} ${f.tec_apellido||''}`.trim()||'—',
-        f.especialidad||'—',
-        new Date(f.fecha_reporte).toLocaleDateString('es-ES')
-    ]);
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total fallas',r.fallas.length,'fas fa-exclamation-triangle','orange')}
-            ${kpi('Alta prioridad',r.fallas.filter(f=>f.nivel_prioridad==='Alta').length,'fas fa-fire','orange')}
-            ${kpi('Media prioridad',r.fallas.filter(f=>f.nivel_prioridad==='Media').length,'fas fa-minus-circle','blue')}
-            ${kpi('Baja prioridad',r.fallas.filter(f=>f.nivel_prioridad==='Baja').length,'fas fa-arrow-down','green')}
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Fallas Técnicas — ${fecha}`, columnas:cols, filas };
-}
-
-function _renderTabMantenimiento(r, fecha) {
-    const cols = ['ID','Equipo','Serial','Descripción','Prioridad','Técnico','Especialidad','Fecha'];
-    const filas = (r.mantenimientos||[]).map(m=>[
-        `MAN-${String(m.id_mantenimiento).padStart(2,'0')}`,
-        m.equipo_nombre||'N/A', m.serial||'—',
-        m.descripcion_fallas||'—', m.nivel_prioridad,
-        `${m.tec_nombre||''} ${m.tec_apellido||''}`.trim()||'—',
-        m.especialidad||'—',
-        new Date(m.fecha_reporte).toLocaleDateString('es-ES')
-    ]);
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total reportes',r.mantenimientos.length,'fas fa-clipboard-list','purple')}
-            ${kpi('Alta',r.mantenimientos.filter(m=>m.nivel_prioridad==='Alta').length,'fas fa-fire','orange')}
-            ${kpi('Media',r.mantenimientos.filter(m=>m.nivel_prioridad==='Media').length,'fas fa-minus','blue')}
-            ${kpi('Baja',r.mantenimientos.filter(m=>m.nivel_prioridad==='Baja').length,'fas fa-arrow-down','green')}
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Mantenimiento de Equipos — ${fecha}`, columnas:cols, filas };
-}
-
-// RF: reporte de asistencia ordenado con los datos del docente y las actividades realizadas.
-function _renderTabAsistencia(r, fecha) {
-    const cols = ['Docente','Cédula Docente','Fecha','Actividad Realizada','Espacio','Estudiante','Año/Sección','Asistió'];
-    const datos = r.asistencia || [];
-    const filas = datos.map(a=>[
-        `${a.docente_nombre||''} ${a.docente_apellido||''}`.trim()||'—',
-        a.docente_cedula||'—',
-        a.fecha?new Date(a.fecha).toLocaleDateString('es-ES'):'—',
-        a.actividad_nombre||'—',
-        a.espacio_nombre||'—',
-        `${a.estudiante_nombre||''} ${a.estudiante_apellido||''}`.trim()||'—',
-        `${a.año||'—'} ${a.seccion||''}`.trim(),
-        a.asistio==='Si'?'Presente':'Ausente'
-    ]);
-    const presentes = datos.filter(a=>a.asistio==='Si').length;
-    // Agrupar cantidad de registros por docente, ya para un resumen visual rápido
-    const porDocente = {};
-    datos.forEach(a => { const k = `${a.docente_nombre||''} ${a.docente_apellido||''}`.trim()||'—'; porDocente[k]=(porDocente[k]||0)+1; });
-    const topDocentes = Object.entries(porDocente).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([nombre,total])=>({nombre,total}));
-    const maxD = Math.max(...topDocentes.map(d=>d.total), 1);
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
-            ${kpi('Total registros',datos.length,'fas fa-clipboard-user','purple')}
-            ${kpi('Presentes',presentes,'fas fa-check-circle','green')}
-            ${kpi('Ausentes',datos.length-presentes,'fas fa-times-circle','orange')}
-        </div>
-        ${topDocentes.length ? `<h4 style="margin-bottom:.75rem;opacity:.7"><i class="fas fa-chalkboard-teacher" style="margin-right:.3rem"></i>Registros por docente</h4>
-        ${barraH(topDocentes, maxD, 'linear-gradient(90deg,#4F46E5,#7C3AED)')}` : ''}
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Asistencia por Docente — ${fecha}`, columnas:cols, filas };
-}
-
-function _renderTabMaquinas(r, fecha) {
-    const cols = ['Equipo','Marca','Modelo','Total Usos'];
-    const filas = (r.maquinas||[]).map(m=>[m.equipo_nombre,m.marca||'—',m.modelo_nombre||'—',m.total_usos]);
-    const max = Math.max(...(r.maquinas||[{total_usos:1}]).map(m=>m.total_usos), 1);
-    document.getElementById('reporte-contenido').innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1.25rem">
-            ${kpi('Equipos con uso',r.maquinas.length,'fas fa-fire','orange')}
-            ${kpi('Más usado', r.maquinas[0]?.equipo_nombre||'—', 'fas fa-trophy','green')}
-            ${kpi('Total usos registrados', (r.maquinas||[]).reduce((a,m)=>a+m.total_usos,0),'fas fa-chart-bar','purple')}
-        </div>
-        <div class="dashboard-content-grid" style="margin-bottom:1rem">
-            <div>
-                <h4 style="margin-bottom:.75rem;opacity:.7;font-size:.9rem"><i class="fas fa-fire" style="margin-right:.3rem;color:#F59E0B"></i>Ranking de uso</h4>
-                ${barraH((r.maquinas||[]).map(m=>({nombre:m.equipo_nombre,total:m.total_usos})), max, 'linear-gradient(90deg,#F59E0B,#EC4899)')}
-            </div>
-        </div>
-        ${tablaHTML(cols, filas)}`;
-    _reporteActual = { titulo:`Reporte de Máquinas más usadas — ${fecha}`, columnas:cols, filas };
-}
-
-// ── EXPORTAR EXCEL ─────────────────────────────────────────────────────────
-function exportarExcel() {
-    if (!_reporteActual.filas.length) return showToast('No hay datos para exportar','error');
-    try {
-        const wb = XLSX.utils.book_new();
-        const datos = [_reporteActual.columnas, ..._reporteActual.filas];
-        const ws = XLSX.utils.aoa_to_sheet(datos);
-        ws['!cols'] = _reporteActual.columnas.map((_, ci) =>
-            ({ wch: Math.max(...datos.map(r => String(r[ci]||'').length), 10) + 2 }));
-        XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
-        XLSX.writeFile(wb, _reporteActual.titulo.replace(/[^a-zA-Z0-9_\- ]/g,'').trim() + '.xlsx');
-        showToast('Excel descargado ✅','success');
-    } catch(e) { console.error(e); showToast('Error al generar el Excel','error'); }
-}
-
-// ── EXPORTAR PDF ───────────────────────────────────────────────────────────
-function exportarPDF() {
-    if (!_reporteActual.filas.length) return showToast('No hay datos para exportar','error');
-    try {
-        const { jsPDF } = window.jspdf;
-        const landscape = _reporteActual.columnas.length > 5;
-        const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit:'mm', format:'a4' });
-        const pw = doc.internal.pageSize.getWidth();
-
-        // Header bar
-        doc.setFillColor(79,70,229);
-        doc.rect(0, 0, pw, 22, 'F');
-        doc.setTextColor(255,255,255);
-        doc.setFontSize(13); doc.setFont(undefined,'bold');
-        doc.text('CBIT Manager', 14, 10);
-        doc.setFontSize(9); doc.setFont(undefined,'normal');
-        doc.text(_reporteActual.titulo, 14, 17);
-        doc.text(`${ubicacionPrincipal}   |   ${new Date().toLocaleString('es-ES')}`, pw/2, 17, {align:'center'});
-
-        doc.autoTable({
-            startY: 28,
-            head: [_reporteActual.columnas],
-            body: _reporteActual.filas,
-            styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
-            headStyles: { fillColor:[79,70,229], textColor:[255,255,255], fontStyle:'bold' },
-            alternateRowStyles: { fillColor:[245,245,250] },
-            margin: { left:14, right:14 },
-        });
-
-        const total = doc.getNumberOfPages();
-        for (let i=1; i<=total; i++) {
-            doc.setPage(i); doc.setFontSize(7); doc.setTextColor(150);
-            doc.text(`Página ${i} de ${total}`, pw-14, doc.internal.pageSize.getHeight()-8, {align:'right'});
-        }
-        doc.save(_reporteActual.titulo.replace(/[^a-zA-Z0-9_\- ]/g,'').trim() + '.pdf');
-        showToast('PDF descargado ✅','success');
-    } catch(e) { console.error(e); showToast('Error al generar el PDF','error'); }
-}
+// El módulo de Reportes e Informes vive en /js/reportes.js (se carga después de este archivo).
 
 // ==================== LOGOUT / TEMA / EYE ====================
 document.getElementById('logout-btn')?.addEventListener('click', async e => {
@@ -2186,9 +1872,9 @@ const MANUAL_AYUDA = {
     inventario: {
         titulo: 'Inventario',
         icono: 'fa-boxes',
-        descripcion: 'Registra cada unidad física de un equipo: su serial único, ubicación y estado actual (Operativo, No operativo, En Reparación, Dañado).',
-        pasos: ['Seleccione el equipo del catálogo y la ubicación física.', 'Ingrese un serial único (no puede repetirse) y el estado actual.'],
-        consejos: ['El estado se actualiza automáticamente cuando se reporta un mantenimiento.', 'El serial es la forma de identificar de forma única cada unidad.']
+        descripcion: 'Registra cada unidad física de un equipo: su código de Bienes Nacionales, serial único, ubicación y estado actual (Operativo, No operativo, En Reparación, Dañado). Un equipo que sale de servicio se desincorpora (queda registrado con fecha y motivo) en lugar de eliminarse.',
+        pasos: ['Seleccione el equipo del catálogo y la ubicación física.', 'Ingrese el código de Bienes Nacionales y el serial (ninguno de los dos puede repetirse) y el estado actual.', 'Para retirar un equipo use "Desincorporar" (solo administradores): debe indicar el motivo y queda registrado con su fecha.'],
+        consejos: ['El código de Bienes Nacionales es la forma oficial de identificar cada unidad.', 'Un equipo desincorporado no se puede modificar ni reservar, y no se cuenta en el total del inventario.', 'No se puede desincorporar un equipo con reservas pendientes o aprobadas.']
     },
     actividades: {
         titulo: 'Actividades Educativas',
@@ -2264,7 +1950,7 @@ const MANUAL_AYUDA = {
         titulo: 'Reportes e Informes',
         icono: 'fas fa-chart-bar',
         descripcion: 'Centraliza todos los reportes del sistema: resumen general, inventario, reservas, fallas técnicas, máquinas más usadas, entre otros.',
-        pasos: ['Use las pestañas superiores para cambiar de reporte.', 'Puede exportar cualquier reporte a Excel o PDF con los botones correspondientes.'],
+        pasos: ['Use las pestañas superiores para cambiar de reporte.', 'Debajo de las pestañas aparecen los filtros de ese reporte (fechas, estado, prioridad, técnico, etc.). Pulse "Aplicar" para actualizar los datos.', 'Al pulsar Excel o PDF se abre una vista previa con los filtros y los primeros registros; confirme para descargar o vuelva para modificar los filtros.', 'La pestaña "Personalizado" permite combinar fecha, equipo y usuario.'],
         consejos: ['El reporte de "Usuarios" solo está disponible para el Administrador.']
     },
     historial: {
@@ -2405,7 +2091,7 @@ Object.assign(window, {
     // Equipos
     mostrarFormularioEquipo, guardarEquipo, eliminarEquipo, editarEquipo,
     // Inventario
-    mostrarFormularioInventario, guardarInventario, eliminarInventario, editarInventario,
+    mostrarFormularioInventario, guardarInventario, desincorporarInventario, editarInventario,
     // Actividades
     mostrarFormularioActividad, guardarActividad, eliminarActividad, editarActividad,
     // Solicitudes
@@ -2426,8 +2112,6 @@ Object.assign(window, {
     mostrarFormularioUsuario, guardarUsuario, inhabilitarUsuario, activarUsuario, editarUsuario,
     // Espacios
     mostrarFormularioEspacio, guardarEspacio, eliminarEspacio, editarEspacio,
-    // Reportes
-    cargarTabReporte, exportarExcel, exportarPDF,
     // Historial de Actividades
     renderHistorial, aplicarFiltrosHistorial,
     // Ayuda contextual

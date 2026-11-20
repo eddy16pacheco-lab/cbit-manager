@@ -4,7 +4,7 @@ const Solicitud = require('../models/Solicitud');
 const DashboardController = {
     async stats(req, res) {
         try {
-            const inventario = await Inventario.findAll();
+            const inventario = (await Inventario.findAll()).filter(i => i.estado !== 'Desincorporado');   // los desincorporados ya no forman parte del inventario activo
             const solicitudes = await Solicitud.findAll();
             res.json({
                 ok: true,

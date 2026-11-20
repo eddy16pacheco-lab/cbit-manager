@@ -72,7 +72,7 @@ router.delete('/equipos/:id',  auth, adminOnly, EquiposController.eliminar);
 router.get('/inventario',         auth, InventarioController.listar);
 router.post('/inventario',        auth, InventarioController.crear);
 router.put('/inventario/:id',     auth, InventarioController.actualizar);
-router.delete('/inventario/:id',  auth, adminOnly, InventarioController.eliminar);
+router.put('/inventario/:id/desincorporar', auth, adminOnly, InventarioController.desincorporar);
 
 // Actividades
 router.get('/actividades',         auth, ActividadController.listar);
@@ -143,6 +143,8 @@ router.get('/reportes/fallas',            auth, ReportesController.fallasTecnica
 router.get('/reportes/mantenimiento',     auth, ReportesController.mantenimientoEquipos);
 router.get('/reportes/maquinas-usadas',   auth, ReportesController.maquinasMasUsadas);
 router.get('/reportes/asistencia',        auth, ReportesController.asistenciaReporte);
+router.get('/reportes/personalizado',     auth, ReportesController.personalizado);      // RF-20
+router.get('/reportes/opciones-filtros',  auth, ReportesController.opcionesFiltros);    // catálogos de la barra de filtros
 
 // Historial de Actividades del Sistema (bitácora) — solo Administrador
 router.get('/historial', auth, adminOnly, HistorialController.listar);

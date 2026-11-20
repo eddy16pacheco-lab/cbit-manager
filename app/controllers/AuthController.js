@@ -1,7 +1,7 @@
 const Usuario = require('../models/Usuario');
 const { registrar } = require('../helpers/auditLog');
 const { enviarCorreoPassword } = require('../helpers/mailer');
-const { requerido, esCedula, esEmail } = require('../helpers/validators');
+const { requerido, validarCedula, normalizarCedula, esEmail } = require('../helpers/validators');
 
 const AuthController = {
     async login(req, res) {
@@ -46,10 +46,11 @@ const AuthController = {
     async recuperar(req, res) {
         const { cedula, correo } = req.body;
         if (!requerido(cedula, correo)) return res.json({ ok: false, msg: 'Ingrese cédula y correo' });
-        if (!esCedula(cedula)) return res.json({ ok: false, msg: 'La cédula debe tener el formato V-12345678 o E-12345678' });
+        const errCedula = validarCedula(cedula);
+        if (errCedula) return res.json({ ok: false, msg: errCedula });
         if (!esEmail(correo)) return res.json({ ok: false, msg: 'Ingrese un correo electrónico válido' });
         try {
-            const user = await Usuario.findByCredencialesRecuperacion(cedula, correo);
+            const user = await Usuario.findByCredencialesRecuperacion(normalizarCedula(cedula), correo);
             if (!user) return res.json({ ok: false, msg: 'No se encontró una cuenta activa con esa cédula y correo' });
 
             const envio = await enviarCorreoPassword({

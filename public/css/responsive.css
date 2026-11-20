@@ -327,3 +327,22 @@ body.sidebar-abierto { overflow: hidden; }
     .nav-item, .btn, .btn-icon, .btn-primary, .btn-outline, button { min-height: 42px; }
 }
 
+
+/* ── Reportes: filtros y vista previa ────────────────────────────────── */
+@media (max-width: 768px) {
+    .rf-campo { flex: 1 1 calc(50% - .75rem); max-width: none; }
+    .rf-actions { width: 100%; margin-left: 0; }
+    .rf-actions .btn { flex: 1 1 0; }
+    .rp-body { padding: 1rem; }
+    .rp-hoja { padding: 1rem; }
+    .rp-meta { margin-left: 0; align-items: flex-start; width: 100%; }
+}
+@media (max-width: 480px) {
+    .rf-campo { flex: 1 1 100%; }
+    .rf-export { width: 100%; }
+    .rp-overlay { padding: 0; align-items: flex-end; }
+    .rp-card { max-height: 96vh; border-radius: 16px 16px 0 0; }
+    .rp-footer { flex-direction: column-reverse; padding: .8rem 1rem; }
+    .rp-footer .btn { width: 100%; justify-content: center; }
+    .rp-paginacion { justify-content: center; }
+}

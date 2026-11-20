@@ -7,8 +7,8 @@
     <title>CBIT Manager - Sistema Integral de Gestión</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css?v=6">
-    <link rel="stylesheet" href="/css/responsive.css?v=6">
+    <link rel="stylesheet" href="/css/style.css?v=9">
+    <link rel="stylesheet" href="/css/responsive.css?v=9">
 </head>
 
 <body>
@@ -62,7 +62,7 @@
                                 <option value="V" selected>V-</option>
                                 <option value="E">E-</option>
                             </select>
-                            <input type="text" id="rec-cedula-numero" class="form-control cedula-numero" placeholder="12345678" inputmode="numeric" maxlength="9" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
+                            <input type="text" id="rec-cedula-numero" class="form-control cedula-numero" placeholder="12345678" data-validar="cedula" inputmode="numeric" maxlength="10" oninput="campoNumerico(this)" onblur="campoNumerico(this, true)">
                         </div>
                     </div>
                     <div class="form-group">
@@ -104,7 +104,7 @@
                 <a href="#" class="nav-item" data-target="modelos"><i class="fas fa-cubes"></i> <span>Modelos</span></a>
                 <a href="#" class="nav-item" data-target="equipos"><i class="fas fa-laptop"></i> <span>Equipos</span></a>
                 <a href="#" class="nav-item" data-target="inventario"><i class="fas fa-boxes"></i> <span>Inventario</span></a>
-                <a href="#" class="nav-item" data-target="disponibilidad-equipos"><i class="fas fa-microchip"></i> <span>Disponibilidad Equipos</span></a>
+               <!-- <a href="#" class="nav-item" data-target="disponibilidad-equipos"><i class="fas fa-microchip"></i> <span></span></-a> -->
 
                 <div class="nav-label">Solicitudes y Reservas</div>
                 <a href="#" class="nav-item" data-target="actividades"><i class="fas fa-chalkboard"></i> <span>Actividades</span></a>
@@ -175,9 +175,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <!-- Socket.IO: actualizaciones en tiempo real sin recargar la página -->
 <script src="/socket.io/socket.io.js"></script>
-<script src="/js/app.js?v=6"></script>
+<script src="/js/app.js?v=9"></script>
+<!-- Módulo Reportes e Informes (filtros contextuales + vista previa de exportación) -->
+<script src="/js/reportes.js?v=9"></script>
 <!-- Nuevas funcionalidades RF-47 al RF-58 -->
-<script src="/js/rf_features.js?v=6"></script>
+<script src="/js/rf_features.js?v=9"></script>
 
 </body>
 

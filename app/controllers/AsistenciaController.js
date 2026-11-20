@@ -2,7 +2,7 @@ const Asistencia = require('../models/Asistencia');
 const Solicitud = require('../models/Solicitud');
 const Estudiante = require('../models/Estudiante');
 const Persona = require('../models/Persona');
-const { requerido, esNumeroPositivo, enumValido, esCedula, esNombrePersonaValido } = require('../helpers/validators');
+const { requerido, esNumeroPositivo, enumValido, validarCedula, normalizarCedula, validarTelefono, esNombrePersonaValido } = require('../helpers/validators');
 
 const AÑOS_VALIDOS = ['1er año', '2er año', '3er año', '4er año', '5er año', '6er año'];
 const SECCIONES_VALIDAS = ['A', 'B', 'C', 'D', 'U'];
@@ -82,11 +82,15 @@ const AsistenciaController = {
             if (!requerido(nombre, apellido, cedula)) return res.json({ ok: false, msg: 'Complete los campos requeridos' });
             if (!esNombrePersonaValido(nombre)) return res.json({ ok: false, msg: 'El nombre solo debe contener letras (3 a 40 caracteres)' });
             if (!esNombrePersonaValido(apellido)) return res.json({ ok: false, msg: 'El apellido solo debe contener letras (3 a 40 caracteres)' });
-            if (!esCedula(cedula)) return res.json({ ok: false, msg: 'La cédula debe tener el formato V-12345678 o E-12345678' });
+            const errCedula = validarCedula(cedula);
+            if (errCedula) return res.json({ ok: false, msg: errCedula });
+            const errTelefono = validarTelefono(telefono);
+            if (errTelefono) return res.json({ ok: false, msg: errTelefono });
 
-            const existente = await Persona.findByCedula(cedula.trim());
+            const ced = normalizarCedula(cedula);
+            const existente = await Persona.findByCedula(ced);
             if (existente) return res.json({ ok: false, msg: 'Ya existe una persona registrada con esa cédula. Selecciónela de la lista de personas existentes.' });
-            const id_persona = await Persona.create({ nombre: nombre.trim(), apellido: apellido.trim(), cedula: cedula.trim(), telefono: telefono || '' });
+            const id_persona = await Persona.create({ nombre: nombre.trim(), apellido: apellido.trim(), cedula: ced, telefono });
             const id_est = await Estudiante.create({ id_persona, seccion: seccion || 'A', año });
             res.json({ ok: true, id_persona, id_estudiante: id_est, msg: `Estudiante ${nombre} ${apellido} registrado` });
         } catch(e) { res.json({ ok: false, msg: e.message }); }

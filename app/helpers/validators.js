@@ -14,11 +14,28 @@ function horaValida(inicio, fin) {
     return typeof inicio === 'string' && typeof fin === 'string' && inicio < fin;
 }
 
-/** Cédula venezolana: V-12345678, E-12345678, V12345678 o solo dígitos (6 a 9 dígitos) */
-function esCedula(v) {
-    if (v === undefined || v === null) return false;
-    return /^[VEve]?-?\d{6,9}$/.test(String(v).trim());
+/**
+ * Cédula venezolana: prefijo V o E + 7 u 8 dígitos numéricos (sin puntos, espacios ni letras).
+ * Devuelve null si es válida o el mensaje de error claro para mostrar al usuario.
+ * El prefijo puede venir como "V-12345678" o "V12345678".
+ */
+function validarCedula(v) {
+    if (typeof v !== 'string' || v === '') return 'Ingrese la cédula de identidad';
+    const m = /^([VEve])-?(.*)$/.exec(v);
+    if (!m) return 'La cédula debe iniciar con el prefijo V o E';
+    const numero = m[2];
+    if (!/^\d+$/.test(numero)) return 'La cédula solo debe contener números (sin puntos, espacios ni letras)';
+    if (numero.length < 7) return `La cédula debe tener mínimo 7 dígitos (ingresó ${numero.length})`;
+    if (numero.length > 8) return `La cédula debe tener máximo 8 dígitos (ingresó ${numero.length})`;
+    return null;
 }
+/** Forma canónica que se guarda en la base de datos: "V-12345678" (o null si es inválida) */
+function normalizarCedula(v) {
+    if (validarCedula(v) !== null) return null;
+    const m = /^([VEve])-?(\d+)$/.exec(v);
+    return `${m[1].toUpperCase()}-${m[2]}`;
+}
+function esCedula(v) { return validarCedula(v) === null; }
 
 /** Formato de correo electrónico básico */
 function esEmail(v) {
@@ -26,15 +43,22 @@ function esEmail(v) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim());
 }
 
-/** Teléfono: acepta separadores comunes, valida 7 a 15 dígitos y rechaza
- *  números con el mismo dígito repetido (ej. 7777777777, 0000000000) */
-function esTelefono(v) {
-    if (v === undefined || v === null || String(v).trim() === '') return false;
-    const soloDigitos = String(v).replace(/\D/g, '');
-    if (soloDigitos.length < 7 || soloDigitos.length > 15) return false;
-    if (/^(\d)\1+$/.test(soloDigitos)) return false; // todos los dígitos iguales
-    return true;
+/** Códigos de operadora móvil válidos en Venezuela */
+const OPERADORAS = ['0412', '0414', '0416', '0422', '0424', '0426'];
+
+/**
+ * Teléfono venezolano: exactamente 11 dígitos numéricos = operadora (4) + número (7).
+ * No admite espacios, guiones, signos ni letras (tampoco al inicio o al final).
+ * Devuelve null si es válido o el mensaje de error para mostrar al usuario.
+ */
+function validarTelefono(v) {
+    if (typeof v !== 'string' || v === '') return 'Ingrese el número de teléfono';
+    if (!/^\d+$/.test(v)) return 'El teléfono solo debe contener números (sin espacios, guiones, signos ni letras)';
+    if (v.length !== 11) return `El teléfono debe tener exactamente 11 dígitos (ingresó ${v.length})`;
+    if (!OPERADORAS.includes(v.slice(0, 4))) return 'El teléfono debe comenzar con 0412, 0414, 0416, 0422, 0424 o 0426';
+    return null;
 }
+function esTelefono(v) { return validarTelefono(v) === null; }
 
 /** Solo letras (con acentos/ñ), espacios, apóstrofes y guiones — para nombres */
 function esSoloTexto(v) {
@@ -93,6 +117,12 @@ function enumValido(v, opciones) {
 }
 
 /** Serial/código alfanumérico simple (letras, números, guiones), 2 a 50 caracteres */
+// Código de Bienes Nacionales: 2 a 30 caracteres (letras, números, guion, punto, barra)
+function esCodigoBienNacional(v) {
+    if (v === undefined || v === null) return false;
+    return /^[A-Za-z0-9][A-Za-z0-9\-\.\/]{1,29}$/.test(String(v).trim());
+}
+
 function esCodigoValido(v) {
     if (v === undefined || v === null) return false;
     return /^[A-Za-z0-9\-_\.\/]{2,50}$/.test(String(v).trim());
@@ -102,8 +132,12 @@ module.exports = {
     requerido,
     horaValida,
     esCedula,
+    validarCedula,
+    normalizarCedula,
     esEmail,
     esTelefono,
+    validarTelefono,
+    OPERADORAS,
     esSoloTexto,
     esNombrePersonaValido,
     esNombreCatalogoValido,
@@ -112,5 +146,6 @@ module.exports = {
     esFechaFuturaOHoy,
     esNumeroPositivo,
     enumValido,
-    esCodigoValido
+    esCodigoValido,
+    esCodigoBienNacional
 };

@@ -12,25 +12,43 @@ class Inventario {
         );
         return rows;
     }
-    static async create({ id_equipos, id_ubicacion_fisica, serial, estado }) {
+    static async findById(id) {
+        const [rows] = await db.execute('SELECT * FROM inventario WHERE id_inventario=?', [id]);
+        return rows[0] || null;
+    }
+    static async create({ codigo_bien_nacional, id_equipos, id_ubicacion_fisica, serial, estado }) {
         const [result] = await db.execute(
-            'INSERT INTO inventario (id_equipos, id_ubicacion_fisica, serial, estado) VALUES (?,?,?,?)',
-            [id_equipos, id_ubicacion_fisica, serial, estado]
+            'INSERT INTO inventario (codigo_bien_nacional, id_equipos, id_ubicacion_fisica, serial, estado) VALUES (?,?,?,?,?)',
+            [codigo_bien_nacional, id_equipos, id_ubicacion_fisica, serial, estado]
         );
         return result.insertId;
     }
     static async updateEstado(id, estado) {
         await db.execute('UPDATE inventario SET estado=? WHERE id_inventario=?', [estado, id]);
     }
-    static async delete(id) {
-        await db.execute('DELETE FROM inventario WHERE id_inventario=?', [id]);
+    static async update(id, { codigo_bien_nacional, id_equipos, id_ubicacion_fisica, serial, estado }) {
+        await db.execute(
+            'UPDATE inventario SET codigo_bien_nacional=?, id_equipos=?, id_ubicacion_fisica=?, serial=?, estado=? WHERE id_inventario=?',
+            [codigo_bien_nacional, id_equipos, id_ubicacion_fisica, serial, estado, id]
+        );
+    }
+    // Desincorporación: el equipo se conserva (con fecha y motivo) en lugar de eliminarse.
+    static async desincorporar(id, motivo) {
+        await db.execute(
+            `UPDATE inventario SET estado='Desincorporado', fecha_desincorporacion=CURDATE(), motivo_desincorporacion=?
+             WHERE id_inventario=? AND estado<>'Desincorporado'`,
+            [motivo, id]
+        );
+    }
+    // Reservas Pendientes/Aprobadas de hoy en adelante que usan esta unidad
+    static async reservasVigentes(id) {
+        const [rows] = await db.execute(
+            `SELECT COUNT(*) AS total
+             FROM detalle_solicitud ds JOIN solicitud s ON ds.id_solicitud=s.id_solicitud
+             WHERE ds.id_inventario=? AND s.estado IN ('Pendiente','Aprobado') AND s.fecha>=CURDATE()`,
+            [id]
+        );
+        return rows[0].total;
     }
 }
 module.exports = Inventario;
-
-Inventario.update = async function(id, { id_equipos, id_ubicacion_fisica, serial, estado }) {
-    await db.execute(
-        'UPDATE inventario SET id_equipos=?, id_ubicacion_fisica=?, serial=?, estado=? WHERE id_inventario=?',
-        [id_equipos, id_ubicacion_fisica, serial, estado, id]
-    );
-};

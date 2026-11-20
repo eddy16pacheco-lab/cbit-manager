@@ -1,3 +1,36 @@
+# Validación de cédula/teléfono (Venezuela) y rango de fechas obligatorio en reportes
+
+- **Cédula**: prefijo V/E (campo aparte) + solo dígitos, **7 u 8**. Antes aceptaba 6 a 9. Se guarda como `V-12345678`.
+- **Teléfono**: 11 dígitos numéricos, operadora 0412, 0414, 0416, 0422, 0424 o 0426. Sin espacios, guiones, signos ni letras. Ahora es obligatorio también para estudiantes.
+- Validación en **frontend** (filtrado numérico y mensajes en vivo; el envío se bloquea) y en **backend** (`validarCedula`, `validarTelefono`), más CHECK en la base: migración `006_validacion_cedula_telefono.sql`.
+- **Reportes**: Fecha de Inicio y Fecha de Fin obligatorias en TODOS los reportes (12 pestañas, exportaciones Excel/PDF y reportes programados). El backend responde error si faltan o si Inicio > Fin. Resumen, Usuarios, Equipos y Disponibilidad ahora cuentan su actividad dentro del período.
+- Reportes programados: diario = hoy; semanal = los 7 días anteriores. Título acortado a 30 caracteres (límite de `notificacion.titulo`).
+- Datos de ejemplo: `database/seeders/seed_01_catalogo_equipos_inventario.sql` y `seed_02_usuarios_reservas_actividades.sql`.
+- **Requiere ejecutar `006_validacion_cedula_telefono.sql`.**
+
+---
+
+# Inventario — Código de Bienes Nacionales y Desincorporación
+
+- **Código de Bienes Nacionales** (`inventario.codigo_bien_nacional`, único): reemplaza al "#id" autoincremental en Inventario, Disponibilidad, selector de reservas y reportes. `id_inventario` se conserva solo como llave interna.
+- **Desincorporación** sustituye a la eliminación de equipos: nuevo estado `Desincorporado` con fecha y motivo (solo administradores). No se permite si el equipo tiene reservas pendientes/aprobadas; un equipo desincorporado no se edita, no se reserva y no cuenta en los totales del inventario.
+- Se elimina la ruta `DELETE /api/inventario/:id`; nueva ruta `PUT /api/inventario/:id/desincorporar`.
+- **Requiere ejecutar `database/migrations/005_bienes_nacionales.sql`.** Los equipos existentes quedan "Sin código" hasta que se edite cada uno.
+
+---
+
+# Reportes e Informes — filtros contextuales y vista previa
+
+- **Barra de filtros contextual** bajo las pestañas: los campos cambian según el reporte (fechas, estado, prioridad, técnico, rol, orden y Top 5/10/Todos para máquinas, etc.). Filtrado en el servidor con parámetros preparados (`app/helpers/reportFilters.js`).
+- **Nueva pestaña "Personalizado (RF-20)"** con panel colapsable: Fecha + Equipo + Usuario. Un docente solo ve sus propias reservas.
+- **Vista previa antes de exportar**: Excel/PDF abren un modal con membrete, filtros aplicados y tabla paginada; solo "Confirmar y Descargar" genera el archivo. Los archivos ahora incluyen los filtros aplicados.
+- "Menos usadas" incluye equipos con 0 usos.
+- Código del módulo movido de `app.js` a `public/js/reportes.js`.
+- Nota: `mantenimiento` no tiene columna de estado; el filtro "Estado" usa el estado actual del equipo en inventario.
+- No requiere migraciones de base de datos.
+
+---
+
 # CBIT Manager — Registro de Cambios (v1.0.3 → v1.1.0)
 
 ## ⚠️ Paso obligatorio antes de desplegar

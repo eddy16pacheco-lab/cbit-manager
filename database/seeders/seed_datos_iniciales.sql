@@ -50,9 +50,9 @@ INSERT IGNORE INTO espacio (nombre, capacidad) VALUES
 
 -- Personas
 INSERT IGNORE INTO persona (nombre, apellido, cedula, telefono) VALUES
-('Jose',   'Paez',       'V-31394077', '0412-1234567'),
-('Maria',  'Gonzalez',   'V-87654321', '0414-7654321'),
-('Carlos', 'Rodriguez',  'V-12345678', '0424-1234567');
+('Jose',   'Paez',       'V-31394077', '04121234567'),
+('Maria',  'Gonzalez',   'V-87654321', '04147654321'),
+('Carlos', 'Rodriguez',  'V-12345678', '04241234567');
 
 -- Usuarios (admin / admin123)
 INSERT IGNORE INTO usuario (id_persona, nombre_usuario, contrasena_usuario, correo, estado, roles) VALUES
